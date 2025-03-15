@@ -1,0 +1,69 @@
+{
+  "settings": {
+    "startDate": "2025-03-03T16:00:00.000Z",
+    "initialTaskId": 1,
+    "tasks": [
+      {
+        "id": 1,
+        "name": "一采",
+        "restTime": "3小时",
+        "sleepTime": "23:00",
+        "taskClass": "task-1"
+      },
+      {
+        "id": 2,
+        "name": "二采",
+        "restTime": "2小时",
+        "sleepTime": "02:00",
+        "taskClass": "task-2"
+      },
+      {
+        "id": 3,
+        "name": "三采",
+        "restTime": "休息",
+        "sleepTime": "21:00",
+        "taskClass": "task-3"
+      },
+      {
+        "id": 4,
+        "name": "一休",
+        "restTime": "休息",
+        "sleepTime": "21:00",
+        "taskClass": "task-4"
+      },
+      {
+        "id": 5,
+        "name": "二休",
+        "restTime": "休息",
+        "sleepTime": "02:00",
+        "taskClass": "task-5"
+      },
+      {
+        "id": 6,
+        "name": "三休",
+        "restTime": "休息",
+        "sleepTime": "23:00",
+        "taskClass": "task-6"
+      }
+    ]
+  },
+  "salarySettings": {
+    "baseSalary": 4500,
+    "performance": 500,
+    "seniority": 50,
+    "insurance": 430,
+    "education": 2000
+  },
+  "markedDates": {
+    "2025-03-15": {
+      "overtime": true,
+      "doubleOvertime": true
+    },
+    "2025-03-13": {
+      "leave": true,
+      "overtime": true,
+      "double": true,
+      "doubleOvertime": true
+    }
+  }
+}
