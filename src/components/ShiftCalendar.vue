@@ -1,195 +1,206 @@
 <template>
-  <div class="calendar-container">
+  <div class="shift-calendar">
     <div class="calendar-header">
-      <div class="calendar-controls">
-        <van-button 
-          type="primary" 
-          size="small" 
-          @click="previousMonth" 
-          class="control-button"
-        >
-          上个月
+      <div class="month-navigation">
+        <van-button size="small" @click="prevMonth">
+          <van-icon name="arrow-left"/>
         </van-button>
-        <h2>{{ currentYear }}年{{ currentMonth + 1 }}月</h2>
-        <van-button 
-          type="primary" 
-          size="small" 
-          @click="nextMonth" 
-          class="control-button"
-        >
-          下个月
+        <span class="month-display" @click="showMonthPicker = true">{{ currentYear }}年{{ currentMonth + 1 }}月</span>
+        <van-button size="small" @click="nextMonth">
+          <van-icon name="arrow"/>
         </van-button>
       </div>
-      <div class="calendar-legend">
-        <span v-for="task in tasks" :key="task.id" :class="['legend-item', task.taskClass]">
-          {{ task.name }}
-        </span>
+
+      <div class="buttons">
+        <van-button plain size="small" type="primary" @click="goToToday">
+          <van-icon name="calendar-o"/>
+          <span>今天</span>
+        </van-button>
       </div>
     </div>
-    
+
     <div class="calendar-grid">
-      <div class="calendar-weekdays">
-        <span v-for="(day, index) in weekdays" :key="index">{{ day }}</span>
+      <div class="weekday-header">
+        <div v-for="day in weekdays" :key="day" class="weekday-cell">{{ day }}</div>
       </div>
-      <div class="calendar-days">
-        <div 
-          v-for="day in days" 
-          :key="day.date.toISOString()"
-          :class="[
-            'calendar-day', 
-            { 'current-month': day.isCurrentMonth },
-            { 'today': day.isToday },
-            day.taskClass
-          ]"
-          @click="toggleDayDetails(day)"
+
+      <div class="calendar-body">
+        <div
+            v-for="(day, index) in calendarDays"
+            :key="index"
+            :class="['calendar-cell', getDayClasses(day)]"
+            @click="handleDayClick(day)"
         >
-          <div class="day-number">{{ day.date.getDate() }}</div>
-          <div class="day-info">
-            <div class="day-task" v-if="day.taskName">{{ day.taskName }}</div>
-            <div class="day-shift">{{ day.shift }}</div>
+          <div class="date-header">
+            <div class="date-number">{{ day.date }}</div>
+            <div class="lunar-date">{{ day.lunarDate }}</div>
           </div>
-          <div class="day-marks" v-if="hasMarks(day.date)">
-            <div v-if="isMarked(day.date, 'leave')" class="mark-text mark-leave">调休</div>
-            <div v-if="isMarked(day.date, 'double')" class="mark-text mark-double">双倍</div>
-            <div v-if="isMarked(day.date, 'overtime')" class="mark-text mark-overtime">加班</div>
-            <div v-if="isMarked(day.date, 'doubleOvertime')" class="mark-text mark-double-overtime">双倍加班</div>
+
+          <div v-if="day.task" class="task-info">
+            <div class="task-name">{{ day.task.taskName }}</div>
+            <div class="shift-type">{{ day.task.isDay ? '白班' : day.task.isNight ? '夜班' : '休息' }}</div>
+            <div v-if="day.task.isNight" class="sleep-time">
+              {{ day.task.sleepTime }}睡觉
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- 日期详情弹窗 -->
-    <van-popup 
-      v-model:show="showDayDetails" 
-      position="bottom" 
-      :style="{ height: '40%' }"
-    >
-      <div class="day-details" v-if="selectedDay">
-        <div class="day-details-header">
-          <h3>{{ formatDate(selectedDay.date) }}</h3>
-          <van-button type="primary" size="small" @click="showDayDetails = false">关闭</van-button>
-        </div>
-        <div class="day-details-content">
-          <div class="day-task-detail">
-            <p><strong>班次:</strong> {{ selectedDay.taskName }} {{ selectedDay.shift }}</p>
-            <p v-if="selectedDay.shift !== '休息'"><strong>休息时间:</strong> {{ getRestTime(selectedDay) }}</p>
-            <p v-if="selectedDay.shift !== '休息'"><strong>就寝时间:</strong> {{ getSleepTime(selectedDay) }}</p>
-          </div>
-          <div class="day-marks-controls">
-            <h4>标记</h4>
-            <div class="mark-buttons">
-              <van-button 
-                :type="isMarked(selectedDay.date, 'leave') ? 'primary' : 'default'" 
-                size="small" 
-                @click="markDay(selectedDay.date, 'leave')"
-              >
-                调休/请假
-              </van-button>
-              <van-button 
-                :type="isMarked(selectedDay.date, 'double') ? 'primary' : 'default'" 
-                size="small" 
-                @click="markDay(selectedDay.date, 'double')"
-              >
-                双倍工资
-              </van-button>
-              <van-button 
-                :type="isMarked(selectedDay.date, 'overtime') ? 'primary' : 'default'" 
-                size="small" 
-                @click="markDay(selectedDay.date, 'overtime')"
-              >
-                加班
-              </van-button>
-              <van-button 
-                :type="isMarked(selectedDay.date, 'doubleOvertime') ? 'primary' : 'default'" 
-                size="small" 
-                @click="markDay(selectedDay.date, 'doubleOvertime')"
-              >
-                双倍加班
-              </van-button>
+
+          <div v-if="getDayMark(day.fullDate)" class="date-marks">
+            <div
+                v-for="markType in getMarkTypes(day.fullDate)"
+                :key="markType"
+                :class="`mark-${markType}`"
+                class="date-mark"
+            >
+              {{ getMarkLabel(markType) }}
             </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <van-action-sheet v-model:show="showDayDetails" :actions="dayActions" cancel-text="取消" close-on-click-action
+                      @select="onActionSelect"/>
+
+    <!-- 月份选择器 -->
+    <van-popup v-model:show="showMonthPicker" position="bottom" round>
+      <van-date-picker
+        v-model="currentDateArray"
+        title="选择年月"
+        :columns-type="['year', 'month']"
+        :min-date="new Date(2010, 0, 1)"
+        :max-date="new Date(2030, 11, 31)"
+        @confirm="onMonthSelected"
+        @cancel="showMonthPicker = false"
+      />
     </van-popup>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, defineProps, defineEmits } from 'vue';
+import {computed, onMounted, ref, watch} from 'vue';
+import {useUserStore} from '@/stores/user';
+import {storeToRefs} from 'pinia';
+import {Solar} from 'lunar-javascript';
 
-// 定义组件属性
-const props = defineProps({
-  startDate: {
-    type: Date,
-    required: true
-  },
-  initialTaskId: {
-    type: Number,
-    default: 1
-  },
-  tasks: {
-    type: Array,
-    required: true
-  },
-  markedDates: {
-    type: Object,
-    default: () => ({})
-  }
-});
+// 使用用户store
+const userStore = useUserStore();
+const {settings, markedDates} = storeToRefs(userStore);
 
-// 定义事件
-const emit = defineEmits(['markDate']);
 
 // 响应式状态
 const currentYear = ref(new Date().getFullYear());
 const currentMonth = ref(new Date().getMonth());
 const showDayDetails = ref(false);
 const selectedDay = ref(null);
+const showMonthPicker = ref(false); // 月份选择器显示状态
+const currentDateArray = ref([
+  currentYear.value.toString(),
+  (currentMonth.value + 1).toString().padStart(2, '0')
+]); // 用于日期选择器的年月数组
 
-// 暴露属性给父组件
-defineExpose({
-  currentYear,
-  currentMonth
+// 从store中获取数据
+const startDate = computed(() => settings.value.startDate);
+const initialTaskId = computed(() => settings.value.initialTaskId);
+const tasks = computed(() => settings.value.tasks);
+
+// 操作菜单
+const dayActions = computed(() => {
+  if (!selectedDay.value) return [];
+
+  return [
+    {name: '标记休假', value: 'mark-leave'},
+    {name: '标记加班', value: 'mark-overtime'},
+    {name: '标记双倍工资', value: 'mark-double'},
+    {name: '标记双倍加班', value: 'mark-doubleOvertime'}
+  ];
 });
+
 
 // 计算属性
 const weekdays = computed(() => ['日', '一', '二', '三', '四', '五', '六']);
 
+// 获取农历日期
+function getLunarDate(date) {
+  try {
+    // 创建阳历对象
+    const solar = Solar.fromDate(date);
+    // 转换为农历
+    const lunar = solar.getLunar();
+
+    // 获取农历日期
+    let lunarDay = lunar.getDayInChinese();
+
+    // 如果是农历月的第一天，显示月份
+    if (lunar.getDay() === 1) {
+      return lunar.getMonthInChinese() + '月';
+    }
+
+    // 判断是否是节气
+    const term = lunar.getJieQi();
+    if (term) {
+      return term;
+    }
+
+    // 判断是否是农历节日
+    const festivals = lunar.getFestivals();
+    if (festivals.length > 0) {
+      // 只取第一个节日，并缩短显示
+      const festival = festivals[0];
+      // 如果节日名称太长，取前2个字
+      return festival.length > 2 ? festival.substring(0, 15) : festival;
+    }
+
+    // 判断是否是公历节日
+    const solarFestivals = solar.getFestivals();
+    if (solarFestivals.length > 0) {
+      // 只取第一个节日，并缩短显示
+      const festival = solarFestivals[0];
+      // 如果节日名称太长，取前2个字
+      return festival.length > 2 ? festival.substring(0, 15) : festival;
+    }
+
+    return lunarDay;
+  } catch (e) {
+    console.error('农历转换失败', e);
+    return '';
+  }
+}
+
 // 计算当前月份的日历天数
-const days = computed(() => {
+const calendarDays = computed(() => {
   const result = [];
-  
+
   // 获取当前月的第一天
   const firstDayOfMonth = new Date(currentYear.value, currentMonth.value, 1);
-  
+
   // 获取当前月的天数
   const daysInMonth = new Date(currentYear.value, currentMonth.value + 1, 0).getDate();
-  
+
   // 获取当前月第一天是星期几 (0-6, 0 is Sunday)
   const firstDayOfWeek = firstDayOfMonth.getDay();
-  
+
   // 上一个月的最后几天
   const lastDayOfLastMonth = new Date(currentYear.value, currentMonth.value, 0).getDate();
-  
+
   // 填充上个月的日期
   for (let i = 0; i < firstDayOfWeek; i++) {
     const date = new Date(currentYear.value, currentMonth.value - 1, lastDayOfLastMonth - firstDayOfWeek + i + 1);
     result.push(createDayObject(date, false));
   }
-  
+
   // 填充当前月的日期
   for (let i = 1; i <= daysInMonth; i++) {
     const date = new Date(currentYear.value, currentMonth.value, i);
     result.push(createDayObject(date, true));
   }
-  
+
   // 填充下个月的日期
   const remainingSlots = 42 - result.length; // 6 rows * 7 days = 42
   for (let i = 1; i <= remainingSlots; i++) {
     const date = new Date(currentYear.value, currentMonth.value + 1, i);
     result.push(createDayObject(date, false));
   }
-  
+
   return result;
 });
 
@@ -197,54 +208,81 @@ const days = computed(() => {
 function createDayObject(date, isCurrentMonth) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   // 计算这一天的任务和班次
-  const { taskId, shift } = calculateShiftForDate(date);
-  
+  const {taskId, shift} = calculateShiftForDate(date);
+
   // 获取任务对象
-  const task = props.tasks.find(t => t.id === taskId);
-  
+  const task = tasks.value.find(t => t.id === taskId);
+
+  // 格式化日期作为key
+  const fullDate = new Date(date);
+  fullDate.setHours(0, 0, 0, 0);
+
+  // 检查班次类型
+  const isDay = shift === '白班';
+  const isNight = shift === '夜班';
+  const isRest = shift === '休息';
+
+  // 获取农历日期
+  const lunarDate = getLunarDate(date);
+
   return {
-    date: date,
+    date: date.getDate(),
+    fullDate: fullDate,
+    lunarDate: lunarDate,
     isCurrentMonth: isCurrentMonth,
     isToday: date.getTime() === today.getTime(),
     taskId: taskId,
     taskName: task ? task.name : '未知',
     taskClass: task ? task.taskClass : '',
-    shift: shift
+    shift: shift,
+    // 班次类型
+    isDay: isDay,
+    isNight: isNight,
+    isRest: isRest,
+    // 设置任务和睡觉时间
+    task: {
+      taskName: task ? task.name : '未知',
+      taskClass: task ? task.taskClass : '',
+      isDay: isDay,
+      isNight: isNight,
+      isRest: isRest,
+      sleepTime: task ? task.sleepTime : ''
+    }
   };
 }
 
 // 计算指定日期的班次和任务
 function calculateShiftForDate(date) {
   // 确保startDate是日期对象
-  const startDate = new Date(props.startDate);
-  startDate.setHours(0, 0, 0, 0);
-  
+  const startDateObj = new Date(startDate.value);
+  startDateObj.setHours(0, 0, 0, 0);
+
   // 确保date是日期对象
   const targetDate = new Date(date);
   targetDate.setHours(0, 0, 0, 0);
-  
+
   // 计算从startDate到targetDate的天数
-  const msDiff = targetDate.getTime() - startDate.getTime();
+  const msDiff = targetDate.getTime() - startDateObj.getTime();
   const daysDiff = Math.floor(msDiff / (1000 * 60 * 60 * 24));
-  
+
   // 倒班规则: 每18天一个完整循环，每个任务持续3天
   // 计算在18天循环中的位置 (0-17)
   const positionInCycle = ((daysDiff % 18) + 18) % 18;
-  
+
   // 获取初始任务ID (1-6)
-  const initialTaskId = props.initialTaskId || 1;
-  
+  const initialTaskIdValue = initialTaskId.value || 1;
+
   // 计算任务偏移量
   const taskOffset = positionInCycle / 3 | 0; // 整除，得到0-5
-  
+
   // 计算实际任务ID (1-6)
-  let taskId = ((initialTaskId - 1 + taskOffset) % 6) + 1;
-  
+  let taskId = ((initialTaskIdValue - 1 + taskOffset) % 6) + 1;
+
   // 获取在3天子循环中的位置 (0, 1, 2)
   const positionInTask = positionInCycle % 3;
-  
+
   // 确定班次类型
   let shift;
   if (positionInTask === 0) {
@@ -254,12 +292,12 @@ function calculateShiftForDate(date) {
   } else {
     shift = '休息';
   }
-  
-  return { taskId, shift };
+
+  return {taskId, shift};
 }
 
-// 切换到上个月
-function previousMonth() {
+// 上个月
+function prevMonth() {
   if (currentMonth.value === 0) {
     currentYear.value--;
     currentMonth.value = 11;
@@ -268,7 +306,7 @@ function previousMonth() {
   }
 }
 
-// 切换到下个月
+// 下个月
 function nextMonth() {
   if (currentMonth.value === 11) {
     currentYear.value++;
@@ -278,31 +316,14 @@ function nextMonth() {
   }
 }
 
-// 打开日期详情
-function toggleDayDetails(day) {
-  selectedDay.value = day;
-  showDayDetails.value = true;
-}
 
-// 格式化日期
-function formatDate(date) {
-  return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-}
 
-// 检查日期是否有标记
-function hasMarks(date) {
-  const dateKey = formatDateKey(date);
-  return props.markedDates[dateKey] !== undefined;
-}
 
-// 检查特定标记
-function isMarked(date, type) {
-  const dateKey = formatDateKey(date);
-  return props.markedDates[dateKey]?.[type] === true;
-}
 
-// 格式化日期键
+// 格式化日期为键
 function formatDateKey(date) {
+  if (!date) return '';
+
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
@@ -311,32 +332,42 @@ function formatDateKey(date) {
 
 // 标记日期
 function markDay(date, type) {
-  emit('markDate', date, type);
-}
+  if (!date) return;
 
-// 获取休息时间
-function getRestTime(day) {
-  if (day && day.taskId) {
-    const task = props.tasks.find(t => t.id === day.taskId);
-    return task ? task.restTime : '未知';
+  // 确保日期格式统一（YYYY-MM-DD）
+  const dateKey = formatDateKey(date);
+
+  // 获取当前日期的标记
+  let currentMarks = markedDates.value[dateKey] || {};
+
+  // 如果当前不是对象，初始化为空对象
+  if (typeof currentMarks !== 'object') {
+    currentMarks = {};
   }
-  return '未知';
-}
 
-// 获取就寝时间
-function getSleepTime(day) {
-  if (day && day.taskId) {
-    const task = props.tasks.find(t => t.id === day.taskId);
-    return task ? task.sleepTime : '未知';
+  // 切换指定类型的标记
+  if (currentMarks[type]) {
+    // 如果已有此标记，则移除
+    currentMarks[type] = false;
+  } else {
+    // 如果没有此标记，则添加
+    currentMarks[type] = true;
   }
-  return '未知';
+
+  // 如果所有标记都为false，则删除该日期的整个标记对象
+  const hasActiveMarks = Object.values(currentMarks).some(val => val === true);
+
+  if (!hasActiveMarks) {
+    delete markedDates.value[dateKey];
+  } else {
+    // 更新标记
+    markedDates.value[dateKey] = currentMarks;
+  }
+
+  // 调用store的保存方法
+  userStore.saveUserData();
 }
 
-// 监听开始日期或初始任务ID的变化，更新日历
-watch(() => [props.startDate, props.initialTaskId], () => {
-  // 当startDate或initialTaskId改变时，重新计算日历
-  // 日历会自动重新计算，因为days是计算属性
-});
 
 // 组件挂载后
 onMounted(() => {
@@ -344,261 +375,430 @@ onMounted(() => {
   currentYear.value = today.getFullYear();
   currentMonth.value = today.getMonth();
 });
+
+// 获取日期的CSS类
+function getDayClasses(day) {
+  const classes = [];
+
+  if (day.isCurrentMonth) {
+    classes.push('current-month');
+  } else {
+    classes.push('other-month');
+  }
+
+  if (day.isToday) {
+    classes.push('today');
+  }
+
+  // 添加任务类
+  if (day.taskClass) {
+    classes.push(day.taskClass);
+  }
+
+  // 添加班次类
+  if (day.isDay) {
+    classes.push('day-shift');
+  } else if (day.isNight) {
+    classes.push('night-shift');
+  } else if (day.isRest) {
+    classes.push('rest-day');
+  }
+
+  // 添加标记类
+  const markTypes = getMarkTypes(day.fullDate);
+  if (markTypes.length > 0) {
+    markTypes.forEach(markType => {
+      classes.push(`has-mark-${markType}`);
+    });
+  }
+
+  return classes;
+}
+
+// 获取日期的标记
+function getDayMark(date) {
+  if (!date) return null;
+
+  const dateKey = formatDateKey(date);
+  return markedDates.value[dateKey];
+}
+
+
+// 处理日期点击
+function handleDayClick(day) {
+  selectedDay.value = day;
+  showDayDetails.value = true;
+}
+
+// 处理动作选择
+function onActionSelect(action) {
+  if (!selectedDay.value) return;
+
+  const date = selectedDay.value.fullDate;
+
+  if (action.value.startsWith('mark-')) {
+    // 标记类型
+    const markType = action.value.split('-')[1];
+    markDay(date, markType);
+  }
+
+  // 关闭动作面板
+  showDayDetails.value = false;
+}
+
+// 跳转到今天
+function goToToday() {
+  const today = new Date();
+  currentYear.value = today.getFullYear();
+  currentMonth.value = today.getMonth();
+}
+
+// 获取标记的显示文本
+function getMarkLabel(markType) {
+  switch (markType) {
+    case 'leave':
+      return '休假';
+    case 'overtime':
+      return '加班';
+    case 'double':
+      return '双倍';
+    case 'doubleOvertime':
+      return '双倍加班';
+    default:
+      return markType;
+  }
+}
+
+// 获取日期的所有标记类型数组
+function getMarkTypes(date) {
+  if (!date) return [];
+
+  const dateKey = formatDateKey(date);
+  const mark = markedDates.value[dateKey];
+
+  if (!mark || typeof mark !== 'object') return [];
+
+  return Object.keys(mark).filter(key => mark[key] === true);
+}
+
+// 处理月份选择
+function onMonthSelected(value) {
+  console.log('选择的日期：', value);
+  if (value && Array.isArray(value) && value.length >= 2) {
+    // 从数组中提取年月
+    const year = parseInt(value[0]);
+    // 月份需要减1，因为JavaScript月份从0开始
+    const month = parseInt(value[1]) - 1;
+    
+    currentYear.value = year;
+    currentMonth.value = month;
+    
+    // 更新currentDateArray，确保同步
+    currentDateArray.value = [
+      year.toString(),
+      (month + 1).toString().padStart(2, '0')
+    ];
+  }
+  showMonthPicker.value = false;
+}
+
+// 监听年月变化，更新选择器数组
+watch([currentYear, currentMonth], ([newYear, newMonth]) => {
+  currentDateArray.value = [
+    newYear.toString(),
+    (newMonth + 1).toString().padStart(2, '0')
+  ];
+});
 </script>
 
 <style scoped>
-.calendar-container {
+.shift-calendar {
   background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   height: 100%;
   width: 100%;
+  position: relative;
+  overflow: hidden;
 }
 
 .calendar-header {
-  padding: 16px 16px 8px;
-}
-
-.calendar-controls {
+  padding: 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background-color: #f9f9f9;
+  position: sticky;
+  top: 0;
+  z-index: 30;
 }
 
-.calendar-controls h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.calendar-legend {
+.month-navigation {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  align-items: center;
 }
 
-.legend-item {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.8rem;
-  margin-right: 4px;
+.month-navigation span {
+  margin: 0 16px;
+  font-size: 1.2rem;
+  font-weight: 500;
 }
 
-.calendar-weekdays {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  text-align: center;
-  font-weight: bold;
-  padding: 8px 0;
-  border-bottom: 1px solid #eee;
-  background-color: #f9f9f9;
+.buttons {
+  display: flex;
+  align-items: center;
 }
 
-.calendar-days {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  grid-gap: 4px;
-  padding: 8px;
+.calendar-grid {
   flex: 1;
-  overflow-y: auto;
-}
-
-.calendar-day {
-  position: relative;
-  min-height: 80px;
-  padding: 8px 4px 4px;
-  border-radius: 4px;
-  background-color: #f9f9f9;
-  cursor: pointer;
-  transition: transform 0.2s;
   display: flex;
   flex-direction: column;
+  overflow: visible;
 }
 
-.calendar-day:hover {
-  transform: scale(1.05);
-  z-index: 1;
-}
-
-.calendar-day:not(.current-month) {
-  opacity: 0.5;
-}
-
-.day-number {
-  font-weight: bold;
-  margin-bottom: 4px;
+.weekday-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
   text-align: center;
+  font-weight: bold;
+  padding: 10px 0;
+  background-color: #f9f9f9;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 60px;
+  z-index: 29;
 }
 
-.day-info {
+.weekday-cell {
+  font-size: 0.9rem;
+}
+
+.calendar-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-gap: 6px;
+  padding: 10px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 10;
+}
+
+.calendar-cell {
+  position: relative;
+  min-height: 85px;
+  padding: 6px;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.calendar-cell:hover {
+  transform: scale(1.02);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 5;
+}
+
+.calendar-cell:not(.current-month) {
+  opacity: 0.4;
+}
+
+.date-header {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-bottom: 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.05);
 }
 
-.day-task, .day-shift {
-  font-size: 0.8rem;
+.date-number {
+  font-weight: bold;
+  font-size: 0.95rem;
   text-align: center;
 }
 
-.task-1 { background-color: #E6F7FF; }
-.task-2 { background-color: #FFF7E6; }
-.task-3 { background-color: #E6FFFB; }
-.task-4 { background-color: #FCE6FF; }
-.task-5 { background-color: #FFFBE6; }
-.task-6 { background-color: #F5FFE6; }
+.lunar-date {
+  font-size: 0.7rem;
+  color: #888;
+  text-align: center;
+  margin-top: 1px;
+}
+
+.task-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.task-name, .shift-type {
+  font-size: 0.8rem;
+  text-align: center;
+  margin-bottom: 2px;
+  width: 100%;
+}
+
+.task-1 {
+  background-color: #E6F7FF;
+}
+
+.task-2 {
+  background-color: #FFF7E6;
+}
+
+.task-3 {
+  background-color: #E6FFFB;
+}
+
+.task-4 {
+  background-color: #FCE6FF;
+}
+
+.task-5 {
+  background-color: #FFFBE6;
+}
+
+.task-6 {
+  background-color: #F5FFE6;
+}
 
 .today {
   border: 2px solid #1890ff;
+  box-shadow: 0 0 8px rgba(24, 144, 255, 0.3);
 }
 
-.day-marks {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  margin-top: auto;
-}
-
-.mark-text {
-  display: inline-block;
+.sleep-time {
   font-size: 0.7rem;
-  padding: 1px 4px;
-  border-radius: 3px;
-  font-weight: bold;
-  width: 100%;
   text-align: center;
+  color: #666;
 }
 
-.mark-leave { 
-  background-color: #722ed1;
-  color: white;
-}
-
-.mark-double { 
-  background-color: #fa8c16;
-  color: white;
-}
-
-.mark-overtime { 
-  background-color: #52c41a;
-  color: white;
-}
-
-.mark-double-overtime { 
-  background-color: #f5222d;
-  color: white;
-}
-
-.day-details {
-  padding: 16px;
-}
-
-.day-details-header {
+/* 标记样式 */
+.date-marks {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #eee;
-}
-
-.day-details-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.day-task-detail p {
-  margin: 4px 0;
-}
-
-.day-marks-controls h4 {
-  margin-bottom: 8px;
-}
-
-.mark-buttons {
-  display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
-  gap: 8px;
+  justify-content: center;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.05);
+}
+
+.date-mark {
+  font-size: 0.65rem;
+  padding: 1px 3px;
+  border-radius: 3px;
+  color: white;
+  font-weight: bold;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.mark-leave {
+  background-color: #f44336; /* 红色 - 休假 */
+}
+
+.mark-overtime {
+  background-color: #4caf50; /* 绿色 - 加班 */
+}
+
+.mark-double {
+  background-color: #ff9800; /* 橙色 - 双倍工资 */
+}
+
+.mark-doubleOvertime {
+  background-color: #9c27b0; /* 紫色 - 双倍加班 */
 }
 
 @media (max-width: 768px) {
-  .calendar-container {
-    padding: 0;
+  .shift-calendar {
     border-radius: 0;
     box-shadow: none;
-    height: calc(100vh - 120px); /* 考虑顶部导航和底部菜单 */
-    position: fixed;
-    top: 120px;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1;
+    height: auto;
+    min-height: calc(100vh - 140px);
+    background-color: transparent;
   }
-  
+
   .calendar-header {
-    padding: 8px 8px 4px;
+    padding: 10px 8px;
   }
-  
-  .calendar-controls h2 {
+
+  .month-navigation span {
     font-size: 1rem;
+    margin: 0 8px;
   }
-  
-  .calendar-legend {
-    gap: 4px;
-    margin-bottom: 4px;
+
+  .weekday-header {
+    padding: 8px 0;
+    top: 50px;
   }
-  
-  .legend-item {
-    font-size: 0.7rem;
-    padding: 3px 6px;
-  }
-  
-  .calendar-weekdays span {
+
+  .weekday-cell {
     font-size: 0.8rem;
   }
-  
-  .calendar-days {
+
+  .calendar-body {
+    padding: 8px 4px;
+    grid-gap: 4px;
+  }
+
+  .calendar-cell {
+    min-height: 75px;
     padding: 4px;
   }
-  
-  .calendar-day {
-    min-height: 70px;
-    padding: 4px 2px 2px;
+
+  .date-header {
+    margin-bottom: 2px;
+    padding-bottom: 1px;
   }
-  
-  .day-number {
-    font-size: 0.8rem;
+
+  .date-number {
+    font-size: 0.85rem;
   }
-  
-  .day-task, .day-shift {
+
+  .lunar-date {
+    font-size: 0.6rem;
+  }
+
+  .task-name, .shift-type {
     font-size: 0.7rem;
   }
-  
-  .mark-text {
+
+  .sleep-time {
     font-size: 0.65rem;
+  }
+
+  .date-marks {
+    gap: 2px;
+    padding-top: 2px;
+  }
+
+  .date-mark {
+    font-size: 0.6rem;
     padding: 1px 2px;
   }
-  
-  .mark-buttons {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-  
-  .day-details-header h3 {
-    font-size: 1rem;
-  }
-  
-  .day-task-detail p {
-    font-size: 0.9rem;
-  }
+}
+
+.month-display {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.month-display:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.month-display:active {
+  background-color: rgba(0, 0, 0, 0.1);
 }
 </style> 

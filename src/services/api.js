@@ -1,127 +1,130 @@
 import axios from 'axios';
-import { eventBus } from '../utils/eventBus';
+import { showNotify } from 'vant';
 
-// 创建axios实例
+/**
+ * 创建axios实例
+ * 统一配置请求参数
+ */
 const apiClient = axios.create({
-  baseURL: 'http://192.168.0.102:8087/api', // 直接设置API URL，移除环境变量依赖
-  timeout: 10000,
+  baseURL: process.env.NODE_ENV === 'production' 
+    ? '/api' 
+    : 'http://192.168.0.102:8087/api',
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// 请求拦截器
+/**
+ * 请求拦截器
+ * 在请求发送前处理请求配置
+ * 注意：GlobalLoading组件也会添加自己的拦截器
+ */
 apiClient.interceptors.request.use(
   config => {
-    // 在这里可以添加认证信息等
-    console.log('发送请求:', config.url);
+    // 添加时间戳防止缓存
+    if (config.method === 'get') {
+      config.params = {
+        ...config.params,
+        _t: new Date().getTime()
+      };
+    }
+    
     return config;
   },
   error => {
-    console.error('请求错误:', error);
-    // 触发全局错误事件
-    eventBus.emit('api-error', error, '请求配置错误');
     return Promise.reject(error);
   }
 );
 
-// 响应拦截器
+/**
+ * 响应拦截器
+ * 统一处理响应数据和错误
+ * 注意：GlobalLoading组件也会添加自己的拦截器
+ */
 apiClient.interceptors.response.use(
   response => {
-    console.log('收到响应:', response.config.url);
     return response;
   },
   error => {
-    // 处理错误响应
+    // 错误已经发生，其他拦截器（如GlobalLoading）已经处理了请求状态
+    // 这里我们只关注错误通知
+
+    // 默认错误消息
+    let message = '请求失败';
+    
+    // 处理不同类型的错误
     if (error.response) {
-      // 服务器响应了，但状态码不是2xx
-      console.error('响应错误:', error.response.status, error.response.data);
+      // 服务器返回了错误状态码
+      const status = error.response.status;
+      const errorData = error.response.data;
       
-      // 可以根据状态码处理特定情况
-      let errorTitle = '服务器错误';
-      let canRetry = true;
-      
-      switch (error.response.status) {
-        case 401:
-          errorTitle = '未授权, 请登录';
-          canRetry = false;
-          break;
-        case 403:
-          errorTitle = '权限不足';
-          canRetry = false;
-          break;
-        case 404:
-          errorTitle = '请求资源不存在';
-          canRetry = false;
-          break;
-        case 400:
-          errorTitle = '请求参数错误';
-          canRetry = true;
-          break;
-        case 500:
-          errorTitle = '服务器内部错误';
-          canRetry = true;
-          break;
-        default:
-          errorTitle = `错误(${error.response.status})`;
-          canRetry = true;
+      // 优先使用服务器返回的错误消息
+      if (errorData?.message) {
+        message = errorData.message;
+      } else {
+        // 根据状态码定制错误消息
+        const statusMessages = {
+          401: '未授权，请重新登录',
+          403: '您没有访问该资源的权限',
+          404: '请求的资源不存在',
+          408: '服务器繁忙，请稍后再试',
+          429: '服务器繁忙，请稍后再试',
+          500: '服务器暂时不可用，请稍后再试',
+          502: '服务器暂时不可用，请稍后再试',
+          503: '服务器暂时不可用，请稍后再试',
+          504: '服务器暂时不可用，请稍后再试'
+        };
+        
+        message = statusMessages[status] || `错误码: ${status}`;
       }
-      
-      // 触发全局错误事件
-      eventBus.emit(
-        'api-error', 
-        error, 
-        errorTitle, 
-        canRetry, 
-        () => {
-          // 重试函数 - 重新发送原始请求
-          const originalRequest = error.config;
-          return apiClient(originalRequest);
-        }
-      );
     } else if (error.request) {
-      // 请求已发送但没有收到响应
-      console.error('无响应:', error.request);
-      
-      // 触发全局错误事件
-      eventBus.emit(
-        'api-error', 
-        error, 
-        '网络错误', 
-        true, 
-        () => {
-          // 重试函数
-          const originalRequest = error.config;
-          return apiClient(originalRequest);
-        }
-      );
-    } else {
+      // 请求已发送但未收到响应
+      message = '网络连接失败，请检查网络';
+    } else if (error.message) {
       // 请求配置出错
-      console.error('请求配置错误:', error.message);
-      
-      // 触发全局错误事件
-      eventBus.emit('api-error', error, '请求错误', false);
+      message = '请求错误: ' + error.message;
     }
     
+    // 显示错误通知
+    showNotify({
+      type: 'danger',
+      message: message
+    });
+
     return Promise.reject(error);
   }
 );
 
-// API服务对象
+/**
+ * API服务对象
+ * 集中管理所有API请求
+ */
 const apiService = {
   // 认证相关
   auth: {
-    // 登录
+    /**
+     * 用户登录
+     * @param {Object} credentials - 登录凭证
+     * @returns {Promise} 登录结果
+     */
     login(credentials) {
       return apiClient.post('/auth/login', credentials);
     },
     
-    // 注册
+    /**
+     * 用户注册
+     * @param {Object} userData - 用户注册数据
+     * @returns {Promise} 注册结果
+     */
     register(userData) {
       return apiClient.post('/auth/register', userData);
     },
     
-    // 登出
+    /**
+     * 用户登出
+     * @returns {Promise} 登出结果
+     */
     logout() {
       return apiClient.post('/auth/logout');
     }
@@ -129,16 +132,26 @@ const apiService = {
   
   // 用户数据相关
   user: {
-    // 获取用户数据
+    /**
+     * 获取用户数据
+     * @param {string} username - 用户名
+     * @returns {Promise} 用户数据
+     */
     getData(username) {
       return apiClient.get(`/user/data`, { params: { username } });
     },
     
-    // 保存用户数据
+    /**
+     * 保存用户数据
+     * @param {string} username - 用户名
+     * @param {Object} data - 用户数据
+     * @returns {Promise} 保存结果
+     */
     saveData(username, data) {
       return apiClient.post(`/user/data`, data, { params: { username } });
     }
   }
 };
 
-export default apiService; 
+export default apiService;
+export { apiClient }; 

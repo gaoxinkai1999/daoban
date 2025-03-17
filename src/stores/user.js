@@ -1,25 +1,37 @@
+/**
+ * 用户状态管理存储
+ * 使用Pinia管理用户认证、个人设置和数据
+ */
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
-import { useApiService } from '../composables/useApiService';
+import apiService from '../services/api';
 import { showToast } from 'vant';
 import { debounce } from 'lodash';
 
-// 本地存储键
+/**
+ * 本地存储键
+ * 用于在localStorage中保存用户状态
+ */
 const LOCAL_STORAGE_KEY = 'daoban-user-data';
 
-// 定义用户store
+/**
+ * 用户状态存储
+ * 管理用户认证状态、个人设置和数据
+ */
 export const useUserStore = defineStore('user', () => {
-  // 使用API服务
-  const apiService = useApiService();
+  /**
+   * 用户认证状态相关变量
+   */
+  const username = ref('');     // 用户名
+  const isLoggedIn = ref(false); // 是否已登录
   
-  // 状态
-  const username = ref('');
-  const isLoggedIn = ref(false);
-  
-  // 设置
+  /**
+   * 班次设置相关变量
+   * 包含起始日期、初始任务ID、任务列表等
+   */
   const settings = ref({
-    startDate: new Date(),
-    initialTaskId: 1,
+    startDate: new Date(),  // 班次起始日期
+    initialTaskId: 1,       // 初始任务ID
     tasks: [
       { id: 1, name: '一采', restTime: '3小时', sleepTime: '23:00', taskClass: 'task-1' },
       { id: 2, name: '二采', restTime: '2小时', sleepTime: '02:00', taskClass: 'task-2' },
@@ -30,7 +42,10 @@ export const useUserStore = defineStore('user', () => {
     ]
   });
   
-  // 工资设置
+  /**
+   * 工资设置
+   * 默认的全局工资设置
+   */
   const salarySettings = ref({
     baseSalary: 5000,   // 底薪
     performance: 800,   // 绩效
@@ -39,16 +54,28 @@ export const useUserStore = defineStore('user', () => {
     education: 0,       // 学历补贴
   });
   
-  // 月度工资设置
-  const monthlySalarySettings = ref({});
+  /**
+   * 月度工资设置
+   * 特定月份的专属工资设置，键格式为 YYYY-MM
+   */
+  const monthlySalarySettings = ref([]);
   
-  // 标记的日期
+  /**
+   * 标记的日期
+   * 记录请假、加班等特殊标记，键格式为 YYYY-MM-DD
+   */
   const markedDates = ref({});
   
-  // 计算属性
+  /**
+   * 计算属性 - 是否已认证
+   * 同时满足已登录且有用户名时为true
+   */
   const isAuthenticated = computed(() => isLoggedIn.value && username.value);
   
-  // 初始化：尝试从本地存储恢复用户状态
+  /**
+   * 从本地存储初始化用户状态
+   * 应用启动时调用，恢复上次的登录状态
+   */
   function initFromLocalStorage() {
     try {
       const storedData = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -59,18 +86,18 @@ export const useUserStore = defineStore('user', () => {
 
         // 如果有登录信息，尝试加载用户数据
         if (isLoggedIn.value && username.value) {
-          loadUserData().catch(err => {
-            console.error('自动加载用户数据失败:', err);
-            // 如果加载失败，可能是token过期或网络问题，不重置登录状态
-          });
+          loadUserData();
         }
       }
     } catch (error) {
-      console.error('从本地存储恢复用户状态失败:', error);
+      showToast('从本地存储恢复用户状态失败');
     }
   }
 
-  // 保存用户登录状态到本地存储
+  /**
+   * 保存用户状态到本地存储
+   * 登录状态变化时调用，保存最新状态
+   */
   function saveToLocalStorage() {
     try {
       const dataToSave = {
@@ -79,106 +106,75 @@ export const useUserStore = defineStore('user', () => {
       };
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
     } catch (error) {
-      console.error('保存用户状态到本地存储失败:', error);
+      showToast('保存用户状态到本地存储失败');
     }
   }
 
-  // 监听登录状态变化，保存到本地存储
+  /**
+   * 监听登录状态变化，保存到本地存储
+   * 使用Vue的watch API监听状态变化
+   */
   watch([isLoggedIn, username], () => {
     saveToLocalStorage();
   });
   
-  // 计算当前班次的辅助方法（用于调试）
-  const currentShift = computed(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // 确保是当天的零点
-    
-    const startDate = new Date(settings.value.startDate);
-    startDate.setHours(0, 0, 0, 0); // 确保是当天的零点
-    
-    // 计算天数差异
-    const msDiff = today.getTime() - startDate.getTime();
-    const daysDiff = Math.floor(msDiff / (1000 * 60 * 60 * 24));
-    
-    // 计算在18天循环中的位置 (0-17)
-    const position = ((daysDiff % 18) + 18) % 18;
-    
-    // 计算当前任务ID (1-6)
-    // 每个任务连续3天，然后切换到下一个任务
-    const taskId = Math.floor(position / 3) + 1;
-    
-    // 计算班次类型（每个任务的3天内，依次是白班→夜班→休息日）
-    const cyclePosition = position % 3;
-    const isDay = cyclePosition === 0;
-    const isNight = cyclePosition === 1;
-    const shiftType = isDay ? '白班' : (isNight ? '夜班' : '休息日');
-    
-    // 查找任务名称
-    const taskName = settings.value.tasks.find(t => t.id === taskId)?.name || '未知任务';
-    
-    return {
-      taskId,
-      taskName,
-      shiftType,
-      date: today,
-      daysDiff,
-      position,
-      cyclePosition
-    };
-  });
-  
-  // 登录
+  /**
+   * 用户登录
+   * 向后端发送登录请求并更新本地状态
+   * @param {Object} userData - 用户登录信息（用户名和密码）
+   * @returns {Promise} 登录结果
+   */
   async function login(userData) {
-    try {
-      const response = await apiService.auth.login(userData);
-      isLoggedIn.value = true;
-      username.value = userData.username;
-      // 登录成功后会通过watch自动保存到本地存储
-      return response;
-    } catch (error) {
-      console.error('登录失败:', error);
-      throw error;
-    }
+    const response = await apiService.auth.login(userData);
+    isLoggedIn.value = true;
+    username.value = userData.username;
+    return response;
   }
   
-  // 注册
+  /**
+   * 用户注册
+   * 向后端发送注册请求
+   * @param {Object} userData - 用户注册信息（用户名、密码等）
+   * @returns {Promise} 注册结果
+   */
   async function register(userData) {
-    try {
-      const response = await apiService.auth.register(userData);
-      return response;
-    } catch (error) {
-      console.error('注册失败:', error);
-      throw error;
-    }
+    return apiService.auth.register(userData);
   }
   
-  // 登出
+  /**
+   * 用户登出
+   * 向后端发送登出请求并重置本地状态
+   */
   async function logout() {
     try {
       await apiService.auth.logout();
       reset();
-      // 清除本地存储
       localStorage.removeItem(LOCAL_STORAGE_KEY);
       showToast('已退出登录');
     } catch (error) {
-      console.error('登出失败:', error);
       // 即使API调用失败，也应该重置状态
       reset();
-      // 清除本地存储
       localStorage.removeItem(LOCAL_STORAGE_KEY);
     }
   }
   
-  // 重置状态
+  /**
+   * 重置用户状态
+   * 清空所有用户相关数据
+   */
   function reset() {
     isLoggedIn.value = false;
     username.value = '';
   }
   
-  // 从后端加载用户数据
+  /**
+   * 从后端加载用户数据
+   * 获取用户的设置、标记的日期等数据
+   * @param {number} retryCount - 重试次数，默认为0
+   * @returns {Promise} 用户数据
+   */
   async function loadUserData(retryCount = 0) {
     if (!isLoggedIn.value || !username.value) {
-      console.warn('尝试加载用户数据但未登录');
       return Promise.reject(new Error('未登录状态'));
     }
 
@@ -205,8 +201,7 @@ export const useUserStore = defineStore('user', () => {
       }
       
       if (data.monthlySalarySettings) {
-        monthlySalarySettings.value = data.monthlySalarySettings || {};
-        console.log('已加载月度工资设置:', Object.keys(monthlySalarySettings.value));
+        monthlySalarySettings.value = data.monthlySalarySettings || [];
       }
       
       // 更新startDate为日期对象
@@ -214,16 +209,10 @@ export const useUserStore = defineStore('user', () => {
         settings.value.startDate = new Date(settings.value.startDate);
       }
       
-      // 打印当前班次信息（调试用）
-      console.log('[调试] 今天的班次信息:', currentShift.value);
-      
       return Promise.resolve(data);
     } catch (error) {
-      console.error('加载用户数据失败:', error);
-      
       // 如果是网络错误并且重试次数小于3，尝试重试
       if (error.code === 'ERR_NETWORK' && retryCount < 3) {
-        console.log(`正在重试加载用户数据 (${retryCount + 1}/3)...`);
         // 延迟重试，避免立即请求
         await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
         return loadUserData(retryCount + 1);
@@ -245,235 +234,271 @@ export const useUserStore = defineStore('user', () => {
     }
   }
   
-  // 保存用户数据到后端
-  async function saveUserData() {
+  /**
+   * 使用debounce包装保存用户数据函数
+   * 避免频繁请求，提高性能和用户体验
+   */
+  const debouncedSaveUserData = debounce(async () => {
     if (!isLoggedIn.value || !username.value) {
-      console.warn('尝试保存用户数据但未登录');
-      return Promise.reject(new Error('未登录状态'));
+      return;
     }
-    
+
     try {
-      // 确保monthlySalarySettings存在
-      if (!monthlySalarySettings.value) {
-        monthlySalarySettings.value = {};
-      }
-      
-      // 准备要保存的数据
-      const userData = {
+      // 准备要保存的数据 - 只保存关键数据，避免不必要的数据传输
+      const dataToSave = {
         settings: {
           startDate: settings.value.startDate,
           initialTaskId: settings.value.initialTaskId,
           tasks: settings.value.tasks
         },
         salarySettings: salarySettings.value,
-        monthlySalarySettings: monthlySalarySettings.value,
-        markedDates: markedDates.value
+        markedDates: markedDates.value,
+        monthlySalarySettings: monthlySalarySettings.value
       };
+
+      console.log('Saving user data:', dataToSave)
+      await apiService.user.saveData(username.value, dataToSave);
       
-      console.log('保存用户数据:', {
-        username: username.value,
-        settings: '包含初始任务ID和开始日期',
-        salarySettings: '默认工资属性',
-        monthlySettingsCount: Object.keys(monthlySalarySettings.value).length,
-        markedDatesCount: Object.keys(markedDates.value).length
-      });
-      
-      const response = await apiService.user.saveData(username.value, userData);
-      console.log('数据保存成功:', response.data);
-      return Promise.resolve(response.data);
+      // 静默保存，不显示成功提示
+      // 只有失败时才显示提示
     } catch (error) {
-      console.error('保存用户数据失败:', error);
       showToast({
         type: 'fail',
-        message: '保存数据失败'
+        message: '保存失败，请重试'
       });
-      return Promise.reject(error);
+    }
+  }, 1000); // 延迟1秒执行，期间如有多次调用，只执行最后一次
+
+  /**
+   * 保存用户数据到后端
+   * 将本地状态同步到服务器
+   * @param {boolean} showSuccess - 是否显示成功提示，默认为false
+   */
+  async function saveUserData(showSuccess = false) {
+    await debouncedSaveUserData();
+    
+    // 如果需要显示成功提示，手动添加
+    if (showSuccess) {
+      showToast({
+        type: 'success',
+        message: '保存成功'
+      });
     }
   }
   
-  // 更新设置
+  /**
+   * 更新用户设置
+   * 更新班次和任务相关设置
+   * @param {Object} newSettings - 新的设置
+   * @returns {boolean} 是否更新成功
+   */
   function updateSettings(newSettings) {
-    // 检查设置是否有效
-    if (newSettings && newSettings.startDate) {
+    if (!newSettings) return false;
+    
+    try {
+      // 更新设置
       settings.value = {
         ...settings.value,
-        startDate: new Date(newSettings.startDate),
-        initialTaskId: newSettings.initialTaskId || settings.value.initialTaskId
+        ...newSettings
       };
       
-      // 保存到后端
+      // 确保startDate是Date对象
+      if (settings.value.startDate && !(settings.value.startDate instanceof Date)) {
+        settings.value.startDate = new Date(settings.value.startDate);
+      }
+      
+      // 保存到服务器
       saveUserData();
       return true;
-    } else {
-      console.error('更新设置失败: 收到无效的设置数据', newSettings);
+    } catch (error) {
       showToast({
         type: 'fail',
-        message: '保存设置失败'
+        message: '更新设置失败'
       });
       return false;
     }
   }
   
-  // 标记日期
+  /**
+   * 标记日期
+   * 添加、更新或删除特定日期的标记（请假、加班等）
+   * @param {Date|string} date - 需要标记的日期
+   * @param {string} type - 标记类型
+   */
   function markDate(date, type) {
-    // 格式化日期为YYYY-MM-DD格式
+    if (!date) return;
+    
+    // 确保日期格式统一（YYYY-MM-DD）
     const dateKey = formatDateKey(date);
     
-    // 获取当前日期的标记，如果不存在则创建一个新对象
-    const currentMarks = { ...(markedDates.value[dateKey] || {}) };
-    
-    // 切换指定类型的标记状态
-    currentMarks[type] = !currentMarks[type];
-    
-    // 检查是否至少有一个标记是 true
-    const hasAnyMark = ['leave', 'double', 'overtime', 'doubleOvertime'].some(t => currentMarks[t] === true);
-    
-    if (hasAnyMark) {
-      // 更新标记
-      markedDates.value[dateKey] = currentMarks;
+    // 如果type为null或undefined，则删除该日期的标记
+    if (type === null || type === undefined) {
+      if (dateKey in markedDates.value) {
+        delete markedDates.value[dateKey];
+      }
     } else {
-      // 如果没有任何标记，则删除该日期的条目
-      delete markedDates.value[dateKey];
+      // 否则，设置或更新标记
+      markedDates.value[dateKey] = type;
     }
     
-    console.log(`日期${dateKey}的${type}标记已${currentMarks[type] ? '添加' : '删除'}`);
-    
-    // 保存到后端
+    // 保存更新
     saveUserData();
   }
   
-  // 更新月度工资设置
-  function updateMonthlySalarySettings(settings) {
-    console.log('更新月度工资设置，接收到的数据:', settings);
+  /**
+   * 更新月度工资设置
+   * 根据操作类型更新月度工资设置
+   * @param {Object} data - 包含操作类型和设置数据的对象
+   * @returns {boolean} 是否更新成功
+   */
+  function updateMonthlySalarySettings(data) {
+    if (!data || !data.type) return false;
     
-    // 更新设置
-    if (settings) {
-      if (settings.month) {
-        try {
-          // 确保月份是数字
-          const year = Number(settings.month.year);
-          const month = Number(settings.month.month);
-          
-          if (isNaN(year) || isNaN(month)) {
-            throw new Error('无效的月份数据');
-          }
-          
-          // 格式化月份键 (确保月份是两位数)
-          const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-          console.log(`处理月度工资设置 - 原始数据:`, settings.month);
-          console.log(`处理月度工资设置 - 格式化 - 年:${year}, 月:${month}, 月份键:${monthKey}`);
-          
-          // 确保monthlySalarySettings是对象
-          if (!monthlySalarySettings.value) {
-            monthlySalarySettings.value = {};
-            console.log('初始化月度工资设置对象');
-          }
-          
-          // 打印检查现有的所有键
-          console.log('保存前的所有月度设置键:', Object.keys(monthlySalarySettings.value));
-          console.log('检查是否已存在该月设置:', Object.prototype.hasOwnProperty.call(monthlySalarySettings.value, monthKey));
-          
-          if (settings.salarySettings === null) {
-            // 如果是null，表示删除该月设置
-            if (monthKey in monthlySalarySettings.value) {
-              delete monthlySalarySettings.value[monthKey];
-              console.log(`已删除${monthKey}的专属工资设置`);
-            } else {
-              console.log(`${monthKey}没有专属工资设置，无需删除`);
-            }
-          } else {
-            // 验证工资设置数据
-            if (!settings.salarySettings || typeof settings.salarySettings !== 'object') {
-              throw new Error('工资设置数据无效');
-            }
-            
-            // 检查工资设置是否有必要的字段
-            const requiredFields = ['baseSalary', 'performance', 'seniority', 'insurance'];
-            const validatedSettings = {};
-            
-            for (const field of requiredFields) {
-              // 确保是数字类型
-              let value = Number(settings.salarySettings[field]);
-              if (isNaN(value)) {
-                console.warn(`工资设置字段 ${field} 不是有效数字:`, settings.salarySettings[field]);
-                value = 0;
-              }
-              validatedSettings[field] = value;
-            }
-            
-            // 复制其他可能存在的字段（如education）
-            for (const key in settings.salarySettings) {
-              if (!Object.prototype.hasOwnProperty.call(validatedSettings, key)) {
-                let value = Number(settings.salarySettings[key]);
-                validatedSettings[key] = isNaN(value) ? 0 : value;
-              }
-            }
-            
-            console.log('原始工资设置数据:', settings.salarySettings);
-            console.log('验证后的工资设置数据:', validatedSettings);
-            
-            // 设置或更新该月的工资设置（直接使用验证后的数据）
-            monthlySalarySettings.value[monthKey] = validatedSettings;
-            console.log(`已保存${monthKey}的专属工资设置:`, monthlySalarySettings.value[monthKey]);
-          }
-          
-          // 输出更新后的全部月度设置
-          console.log('更新后的所有月度工资设置键:', Object.keys(monthlySalarySettings.value));
-          for (const key of Object.keys(monthlySalarySettings.value)) {
-            console.log(`- ${key}:`, monthlySalarySettings.value[key]);
-          }
-        } catch (error) {
-          console.error('处理月度工资设置时出错:', error);
-          showToast({
-            type: 'fail',
-            message: '保存月度工资设置失败: ' + error.message
-          });
+    try {
+      // 根据操作类型执行不同的操作
+      switch (data.type) {
+        case 'default':
+          return updateDefaultSalarySettings(data.settings);
+        
+        case 'monthly':
+          return updateMonthlySalary(data.settings);
+        
+        case 'remove':
+          return removeMonthlySalary(data.monthKey);
+        
+        default:
+          console.error('未知的操作类型:', data.type);
           return false;
-        }
-      } else if (settings.salarySettings) {
-        // 默认设置
-        salarySettings.value = {...settings.salarySettings};
-        console.log('更新了默认工资设置:', salarySettings.value);
-      } else {
-        console.warn('工资设置数据格式不正确:', settings);
-        showToast({
-          type: 'fail',
-          message: '工资设置数据格式不正确'
-        });
-        return false;
       }
-      
-      // 保存到后端
-      try {
-        saveUserData();
-        return true;
-      } catch (error) {
-        console.error('保存数据到后端失败:', error);
-        showToast({
-          type: 'fail',
-          message: '保存到服务器失败'
-        });
-        return false;
-      }
-    } else {
-      console.error('保存工资设置失败: 收到无效的设置数据', settings);
+    } catch (error) {
+      console.error('更新工资设置失败:', error);
       showToast({
         type: 'fail',
-        message: '保存工资设置失败'
+        message: '更新工资设置失败'
       });
       return false;
     }
   }
   
-  // 格式化日期键
+  /**
+   * 更新默认工资设置
+   * @param {Object} settings - 新的默认工资设置
+   * @returns {boolean} 是否更新成功
+   */
+  function updateDefaultSalarySettings(settings) {
+    if (!settings) return false;
+    
+    try {
+      // 更新全局默认工资设置
+      salarySettings.value = {
+        ...salarySettings.value,
+        ...settings
+      };
+      
+      // 保存更新
+      saveUserData();
+      return true;
+    } catch (error) {
+      console.error('更新默认工资设置失败:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * 更新月度工资设置
+   * @param {Object} monthlySettings - 包含month字段的月度工资设置
+   * @returns {boolean} 是否更新成功
+   */
+  function updateMonthlySalary(monthlySettings) {
+    if (!monthlySettings || !monthlySettings.month) return false;
+    
+    try {
+      // 确保monthlySalarySettings.value是数组
+      if (!monthlySalarySettings.value) {
+        monthlySalarySettings.value = [];
+      }
+      
+      // 查找是否已存在该月份的设置
+      const existingIndex = monthlySalarySettings.value.findIndex(
+        item => item.month === monthlySettings.month
+      );
+      
+      if (existingIndex >= 0) {
+        // 更新已存在的月份设置
+        monthlySalarySettings.value[existingIndex] = { ...monthlySettings };
+      } else {
+        // 添加新的月份设置
+        monthlySalarySettings.value.push({ ...monthlySettings });
+      }
+      
+      console.log(`已保存 ${monthlySettings.month} 的工资设置:`, monthlySettings);
+
+      // 保存更新
+      saveUserData();
+      return true;
+    } catch (error) {
+      console.error('更新月度工资设置失败:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * 删除特定月份的工资设置
+   * @param {string} monthKey - 月份键 (YYYY-MM格式)
+   * @returns {boolean} 是否删除成功
+   */
+  function removeMonthlySalary(monthKey) {
+    if (!monthKey) return false;
+    
+    try {
+      // 确保monthlySalarySettings.value是对象且月独立设置数组存在
+      if (!monthlySalarySettings.value || monthlySalarySettings.value.length === 0) {
+        return true; // 没有数据可删除也视为成功
+      }
+      
+      // 过滤掉要删除的月份
+      monthlySalarySettings.value = monthlySalarySettings.value.filter(
+        item => item.month !== monthKey
+      );
+      
+      console.log(`已删除 ${monthKey} 的工资设置`);
+      
+      // 保存更新
+      saveUserData();
+      return true;
+    } catch (error) {
+      console.error('删除月度工资设置失败:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * 格式化日期为统一的字符串格式
+   * @param {Date|string} date - 需要格式化的日期
+   * @returns {string} 格式化后的日期字符串 (YYYY-MM-DD)
+   */
   function formatDateKey(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    if (!date) return '';
+    
+    let dateObj;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string') {
+      // 如果已经是ISO格式或标准格式，直接解析
+      dateObj = new Date(date);
+    } else {
+      throw new Error('无效的日期格式');
+    }
+    
+    // 格式化为YYYY-MM-DD
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    
     return `${year}-${month}-${day}`;
   }
   
-  // 初始化
+  // 初始化用户状态
   initFromLocalStorage();
   
   return {
@@ -484,21 +509,23 @@ export const useUserStore = defineStore('user', () => {
     salarySettings,
     monthlySalarySettings,
     markedDates,
-    
-    // 计算属性
     isAuthenticated,
-    currentShift,
     
-    // 方法
+    // 认证方法
     login,
     register,
     logout,
-    reset,
+    
+    // 数据方法
     loadUserData,
     saveUserData,
     updateSettings,
     markDate,
     updateMonthlySalarySettings,
-    initFromLocalStorage
+    
+    // 新增的工资设置方法
+    updateDefaultSalarySettings,
+    updateMonthlySalary,
+    removeMonthlySalary
   };
 }); 

@@ -1,6 +1,6 @@
 {
   "settings": {
-    "startDate": "2025-03-03T16:00:00.000Z",
+    "startDate": "2025-03-09T16:00:00.000Z",
     "initialTaskId": 1,
     "tasks": [
       {
@@ -48,22 +48,28 @@
     ]
   },
   "salarySettings": {
-    "baseSalary": 4500,
-    "performance": 500,
-    "seniority": 50,
-    "insurance": 430,
-    "education": 2000
+    "baseSalary": 5000,
+    "performance": 800,
+    "seniority": 500,
+    "insurance": 600,
+    "education": 0
   },
   "markedDates": {
-    "2025-03-15": {
-      "overtime": true,
-      "doubleOvertime": true
-    },
-    "2025-03-13": {
+    "2025-03-16": {
       "leave": true,
-      "overtime": true,
-      "double": true,
-      "doubleOvertime": true
+      "overtime": false,
+      "double": false,
+      "doubleOvertime": false
     }
-  }
+  },
+  "monthlySalarySettings": [
+    {
+      "baseSalary": 5000,
+      "performance": 800,
+      "seniority": 500,
+      "insurance": 600,
+      "education": 200,
+      "month": "2025-03"
+    }
+  ]
 }

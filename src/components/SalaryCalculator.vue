@@ -1,44 +1,53 @@
+/**
+* 工资计算器组件
+* 用于显示和计算月度工资及出勤明细
+*/
 <template>
   <div class="salary-calculator">
     <h2>工资计算</h2>
-    
+
     <div class="salary-container">
+      <!-- 月份选择区域 -->
       <div class="month-selector">
+        <!-- 月份导航区域 -->
         <div class="month-navigation">
           <van-button size="small" @click="prevMonth">
-            <van-icon name="arrow-left" />
+            <van-icon name="arrow-left"/>
           </van-button>
-          <span>{{ currentYear }}年{{ currentMonth + 1 }}月</span>
+          <span class="month-display" @click="showMonthPicker = true">{{ currentYear }}年{{ currentMonth + 1 }}月</span>
           <van-button size="small" @click="nextMonth">
-            <van-icon name="arrow" />
+            <van-icon name="arrow"/>
           </van-button>
         </div>
+        <!-- 工资设置状态显示区域 -->
         <div class="salary-settings-status">
           <div class="status-indicator">
-            <div class="indicator-dot" :class="{ active: isCustomMonthSettings }"></div>
+            <div :class="{ active: isCustomMonthSettings }" class="indicator-dot"></div>
             <span>{{ isCustomMonthSettings ? '已设置专属工资' : '使用默认工资' }}</span>
           </div>
-          <van-button type="primary" plain size="small" class="settings-button" @click="editMonthSalarySettings">
-            <van-icon name="setting-o" />
+          <van-button class="settings-button" plain size="small" type="primary" @click="editMonthSalarySettings">
+            <van-icon name="setting-o"/>
             <span>{{ isCustomMonthSettings ? '修改' : '设置' }}本月工资</span>
           </van-button>
         </div>
       </div>
-      
+
+      <!-- 工资和出勤明细区域 -->
       <div class="salary-details">
+        <!-- 出勤明细卡片 -->
         <van-card class="salary-card">
           <template #title>
             <div class="card-title">
-              <van-icon name="clock" />
+              <van-icon name="clock"/>
               <span>出勤明细</span>
             </div>
           </template>
           <template #desc>
             <van-cell-group :border="false">
-              <van-cell title="基本出勤" :value="normalAttendanceDays.toFixed(1) + '天'" />
-              <van-cell title="请假天数" :value="'-' + leaveDays.toFixed(1) + '天'" class="leave-cell" />
-              <van-cell title="加班天数" :value="'+' + totalOvertimeDays.toFixed(1) + '天'" class="overtime-cell" />
-              <van-cell title="双倍工资" :value="'+' + extraDoubleDays.toFixed(1) + '天'" class="double-cell" />
+              <van-cell :value="normalAttendanceDays.toFixed(1) + '天'" title="基本出勤"/>
+              <van-cell :value="'-' + leaveDays.toFixed(1) + '天'" class="leave-cell" title="请假天数"/>
+              <van-cell :value="'+' + totalOvertimeDays.toFixed(1) + '天'" class="overtime-cell" title="加班天数"/>
+              <van-cell :value="'+' + extraDoubleDays.toFixed(1) + '天'" class="double-cell" title="双倍工资"/>
               <van-cell size="large">
                 <template #title>
                   <span class="highlight-text">总出勤天数</span>
@@ -53,22 +62,26 @@
             </van-cell-group>
           </template>
         </van-card>
-        
+
+        <!-- 工资明细卡片 -->
         <van-card class="salary-card">
           <template #title>
             <div class="card-title">
-              <van-icon name="balance-o" />
+              <van-icon name="balance-o"/>
               <span>工资明细</span>
             </div>
           </template>
           <template #desc>
             <van-cell-group :border="false">
-              <van-cell title="日薪计算" :value="baseDailySalary.toFixed(2) + '元/天'" />
-              <van-cell title="出勤工资" :value="baseDailySalary.toFixed(2) + ' × ' + totalAttendance.toFixed(1) + ' = ' + attendanceSalary.toFixed(2) + '元'" />
-              <van-cell title="绩效" :value="Number(currentSalarySettings.performance || 0).toFixed(2) + '元'" />
-              <van-cell title="工龄" :value="Number(currentSalarySettings.seniority || 0).toFixed(2) + '元'" />
-              <van-cell title="学历补贴" :value="Number(currentSalarySettings.education || 0).toFixed(2) + '元'" />
-              <van-cell title="保险" :value="'-' + Number(currentSalarySettings.insurance || 0).toFixed(2) + '元'" class="leave-cell" />
+              <van-cell :value="baseDailySalary.toFixed(2) + '元/天'" title="日薪计算"/>
+              <van-cell
+                  :value="baseDailySalary.toFixed(2) + ' × ' + totalAttendance.toFixed(1) + ' = ' + attendanceSalary.toFixed(2) + '元'"
+                  title="出勤工资"/>
+              <van-cell :value="Number(currentSalarySettings.performance || 0).toFixed(2) + '元'" title="绩效"/>
+              <van-cell :value="Number(currentSalarySettings.seniority || 0).toFixed(2) + '元'" title="工龄"/>
+              <van-cell :value="Number(currentSalarySettings.education || 0).toFixed(2) + '元'" title="学历补贴"/>
+              <van-cell :value="'-' + Number(currentSalarySettings.insurance || 0).toFixed(2) + '元'" class="leave-cell"
+                        title="保险"/>
               <van-cell size="large">
                 <template #title>
                   <span class="highlight-text">预计工资</span>
@@ -83,19 +96,21 @@
             </van-cell-group>
           </template>
         </van-card>
-        
+
+        <!-- 操作按钮区域 -->
         <div class="salary-actions">
-          <van-button type="primary" plain block @click="navigateToSalarySettings" icon="setting-o">默认工资设置</van-button>
-          <van-button type="primary" block @click="navigateToCalendar" icon="calendar-o">查看本月日历</van-button>
+          <van-button block icon="setting-o" plain type="primary" @click="navigateToSalarySettings">默认工资设置
+          </van-button>
+          <van-button block icon="calendar-o" type="primary" @click="navigateToCalendar">查看本月日历</van-button>
         </div>
       </div>
     </div>
-    
-    <!-- 提示卡片 -->
+
+    <!-- 出勤计算说明卡片 -->
     <van-card class="info-card">
       <template #title>
         <div class="card-title">
-          <van-icon name="info-o" />
+          <van-icon name="info-o"/>
           <span>出勤计算说明</span>
         </div>
       </template>
@@ -109,16 +124,16 @@
         </ul>
       </template>
     </van-card>
-    
+
     <!-- 月份工资设置弹窗 -->
-    <van-popup v-model:show="monthSettingsPopup" position="bottom" round :style="{ height: '85%' }">
+    <van-popup v-model:show="monthSettingsPopup" :style="{ height: '85%' }" position="bottom" round>
       <div class="popup-container">
         <div class="popup-header">
           <h3>
-            <van-icon name="calendar-o" />
+            <van-icon name="calendar-o"/>
             {{ currentYear }}年{{ currentMonth + 1 }}月专属工资设置
           </h3>
-          <van-icon name="cross" size="20" @click="monthSettingsPopup = false" />
+          <van-icon name="cross" size="20" @click="monthSettingsPopup = false"/>
         </div>
         <div class="popup-subheader">
           <div :class="['status-badge', isCustomMonthSettings ? 'custom' : 'default']">
@@ -126,60 +141,63 @@
           </div>
         </div>
         <div class="popup-content">
-          <SalarySettings 
-            v-if="monthSettingsPopup" 
-            v-model="editingSalarySettings"
-            :month="currentMonthObj"
-            :monthlySalarySettings="props.monthlySalarySettings"
-            @saved="onMonthSettingsSaved"
+          <SalarySettings
+              v-if="monthSettingsPopup"
+              :month="currentMonthObj"
           />
         </div>
       </div>
+    </van-popup>
+    
+    <!-- 月份选择器 -->
+    <van-popup v-model:show="showMonthPicker" position="bottom" round>
+      <van-date-picker
+        v-model="currentDateArray"
+        title="选择年月"
+        :columns-type="['year', 'month']"
+        :min-date="new Date(2010, 0, 1)"
+        :max-date="new Date(2030, 11, 31)"
+        @confirm="onMonthSelected"
+        @cancel="showMonthPicker = false"
+      />
     </van-popup>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import {computed, ref, watch} from 'vue';
 import SalarySettings from './SalarySettings.vue';
-import { showToast } from 'vant';
 
-// 定义props
-const props = defineProps({
-  startDate: {
-    type: Date,
-    required: true
-  },
-  tasks: {
-    type: Array,
-    required: true
-  },
-  markedDates: {
-    type: Object,
-    default: () => ({})
-  },
-  salarySettings: {
-    type: Object,
-    required: true
-  },
-  monthlySalarySettings: {
-    type: Object,
-    default: () => ({})
-  }
-});
+import {useUserStore} from '@/stores/user';
+import {storeToRefs} from 'pinia';
 
-// 定义事件
-const emit = defineEmits(['navigate-to-month', 'salary-settings-updated', 'month-changed']);
+// 使用用户store
+const userStore = useUserStore();
+// 从store中解构需要的响应式状态
+const {settings, markedDates, salarySettings, monthlySalarySettings} = storeToRefs(userStore);
 
-// 状态
-const today = new Date();
-const currentYear = ref(today.getFullYear());
-const currentMonth = ref(today.getMonth());
-const attendancePerShift = ref(1.5); // 每个班次的出勤天数
-const monthSettingsPopup = ref(false);
-const editingSalarySettings = ref(null);
 
-// 当前月份的key，格式为 "YYYY-MM"
+// 组件状态初始化
+const today = new Date();  // 获取当前日期
+const currentYear = ref(today.getFullYear());  // 当前年份
+// JavaScript的月份从0开始计数
+const currentMonth = ref(today.getMonth());    // 当前月份（0-11）
+const attendancePerShift = ref(1.5);           // 每个班次的出勤天数（1.5天/班）
+const monthSettingsPopup = ref(false);         // 月度工资设置弹窗显示状态
+const showMonthPicker = ref(false);            // 月份选择器显示状态
+const currentDateArray = ref([
+  currentYear.value.toString(),
+  (currentMonth.value + 1).toString().padStart(2, '0')
+]); // 用于日期选择器的年月数组
+
+// 从store获取数据
+const startDate = computed(() => settings.value.startDate);  // 班次起始日期
+const tasks = computed(() => settings.value.tasks);          // 任务列表
+
+/**
+ * 当前月份的key，格式为 "YYYY-MM"
+ * 用于在monthlySalarySettings中查找对应月份的工资设置
+ */
 const currentMonthKey = computed(() => {
   // 确保月份始终是两位数
   const month = String(currentMonth.value + 1).padStart(2, '0');
@@ -188,113 +206,89 @@ const currentMonthKey = computed(() => {
   return key;
 });
 
-// 月份对象，用于传递给SalarySettings组件
-const currentMonthObj = computed(() => {
-  return {
-    year: currentYear.value,
-    month: currentMonth.value
-  };
-});
+/**
+ * 当前月份对象，用于传递给子组件
+ * 包含年份和月份数据
+ */
+const currentMonthObj = computed(() => ({
+  year: currentYear.value,
+  month: currentMonth.value
+}));
 
-// 判断当前月份是否有自定义工资设置
+/**
+ * 检查当前月份是否有专属工资设置
+ * 用于显示状态指示器和决定使用哪套工资设置
+ */
 const isCustomMonthSettings = computed(() => {
-  console.log('检查月度工资设置键:', currentMonthKey.value);
-  console.log('所有月度工资设置键:', Object.keys(props.monthlySalarySettings || {}));
-  console.log('所有月度工资设置:', props.monthlySalarySettings);
-  
-  // 手动检查对象属性
-  const keys = Object.keys(props.monthlySalarySettings || {});
-  const matchingKey = keys.find(key => key === currentMonthKey.value);
-  console.log('匹配的键:', matchingKey);
-  
-  const hasSetting = props.monthlySalarySettings && 
-                    Object.prototype.hasOwnProperty.call(props.monthlySalarySettings, currentMonthKey.value);
-  
-  console.log(`是否存在当前月份工资设置(${currentMonthKey.value}):`, hasSetting);
-  return hasSetting;
+  return Array.isArray(monthlySalarySettings.value) &&
+      monthlySalarySettings.value.some(item => item.month === currentMonthKey.value);
 });
 
-// 获取当前应该使用的工资设置（优先使用月份设置，没有则使用默认设置）
+/**
+ * 获取当前应该使用的工资设置
+ * 优先使用月份专属设置，没有则使用默认设置
+ */
 const currentSalarySettings = computed(() => {
-  // 确保props.monthlySalarySettings是对象
-  if (!props.monthlySalarySettings) {
-    console.log('月度工资设置为空，使用默认工资设置');
-    return props.salarySettings;
+  // 如果没有月份专属设置，直接返回默认设置
+  if (!isCustomMonthSettings.value) {
+    return salarySettings.value;
   }
-  
-  // 检查月份专属工资设置是否存在且有效
-  if (isCustomMonthSettings.value) {
-    try {
-      const monthlySettings = props.monthlySalarySettings[currentMonthKey.value];
-      
-      // 确保获取到的是有效对象且有必要的字段
-      if (monthlySettings && typeof monthlySettings === 'object') {
-        // 验证所有必要字段是否都是有效数字
-        const requiredFields = ['baseSalary', 'performance', 'seniority', 'insurance'];
-        const isValid = requiredFields.every(field => 
-          typeof monthlySettings[field] === 'number' && !isNaN(monthlySettings[field])
-        );
-        
-        if (isValid) {
-          console.log(`使用 ${currentMonthKey.value} 的专属工资设置:`, monthlySettings);
-          return monthlySettings;
-        } else {
-          console.warn(`${currentMonthKey.value} 的专属工资设置字段不完整或无效:`, monthlySettings);
-          // 尝试自动修复专属设置
-          const fixedSettings = { ...props.salarySettings };
-          for (const key in monthlySettings) {
-            if (typeof monthlySettings[key] === 'number' && !isNaN(monthlySettings[key])) {
-              fixedSettings[key] = monthlySettings[key];
-            }
-          }
-          console.log(`已修复的专属工资设置:`, fixedSettings);
-          return fixedSettings;
-        }
-      } else {
-        console.warn(`${currentMonthKey.value} 的专属工资设置无效:`, monthlySettings);
-      }
-    } catch (error) {
-      console.error(`获取专属工资设置时出错:`, error);
-    }
-  }
-  
-  // 没有月份专属设置或设置无效，使用默认设置
-  console.log(`${currentMonthKey.value} 使用默认工资设置:`, props.salarySettings);
-  return props.salarySettings;
+
+  // 从月份设置数组中查找当前月份的设置
+  return monthlySalarySettings.value.find(
+      item => item.month === currentMonthKey.value
+  );
+
+
 });
 
-// 日基本工资计算
+/**
+ * 计算日基本工资
+ * 公式：基本工资 / 30天 = 日薪
+ */
 const baseDailySalary = computed(() => {
   // 基本工资 / 30天 = 日薪
   const baseSalary = parseFloat(currentSalarySettings.value.baseSalary) || 0;
   return baseSalary / 30;
 });
 
-// 当月所有日期的信息
+/**
+ * 生成当月所有日期的详细信息
+ * 包含每日的班次信息和标记状态
+ */
 const monthDays = computed(() => {
   const lastDay = new Date(currentYear.value, currentMonth.value + 1, 0);
   const days = [];
-  
+
   for (let i = 1; i <= lastDay.getDate(); i++) {
     const date = new Date(currentYear.value, currentMonth.value, i);
     const shiftInfo = getShiftInfo(date);
     const dateKey = formatDateKey(date);
-    const markInfo = props.markedDates[dateKey] || {};
-    
+    const markData = markedDates.value[dateKey];
+
+    // 检查不同标记类型
+    const isMarkedLeave = markData && markData.leave === true;
+    const isMarkedDouble = markData && markData.double === true;
+    const isMarkedOvertime = markData && markData.overtime === true;
+    const isMarkedDoubleOvertime = markData && markData.doubleOvertime === true;
+
     days.push({
       date,
       shiftInfo,
-      isMarkedLeave: markInfo.leave === true,
-      isMarkedDouble: markInfo.double === true,
-      isMarkedOvertime: markInfo.overtime === true,
-      isMarkedDoubleOvertime: markInfo.doubleOvertime === true
+      isMarkedLeave,
+      isMarkedDouble,
+      isMarkedOvertime,
+      isMarkedDoubleOvertime
     });
   }
-  
+
   return days;
 });
 
-// 正常出勤天数（基本出勤，不考虑任何标记）
+/**
+ * 计算正常出勤天数（基本出勤，不考虑任何标记）
+ * 只计算工作日（非休息日）的天数
+ */
 const normalAttendanceDays = computed(() => {
   return monthDays.value.reduce((total, day) => {
     // 只计算工作日（非休息日）的天数
@@ -305,78 +299,95 @@ const normalAttendanceDays = computed(() => {
   }, 0);
 });
 
-// 请假天数
+/**
+ * 计算请假天数
+ * 只有工作日（非休息日）的请假才计入
+ */
 const leaveDays = computed(() => {
   return monthDays.value.reduce((total, day) => {
     if (day.isMarkedLeave) {
-      // 只有工作日（非休息日）才计算请假
-      if (day.shiftInfo && !day.shiftInfo.isRest) {
-        return total + attendancePerShift.value; // 请假扣除1.5天
-      }
+      return total + attendancePerShift.value; // 请假扣除1.5天
     }
     return total;
   }, 0);
 });
 
-// 双倍工资天数（独立计算，无论是否请假或加班）
+/**
+ * 计算双倍工资天数
+ * 独立计算，无论是否请假或加班
+ * 只有工作日（非休息日）才计算
+ */
 const extraDoubleDays = computed(() => {
   return monthDays.value.reduce((total, day) => {
     if (day.isMarkedDouble) {
-      // 只有工作日（非休息日）才计算双倍工资
-      if (day.shiftInfo && !day.shiftInfo.isRest) {
-        return total + attendancePerShift.value; // 双倍工资增加1.5天
-      }
+      return total + attendancePerShift.value; // 双倍工资增加1.5天
     }
     return total;
   }, 0);
 });
 
-// 加班总天数
+/**
+ * 计算加班总天数
+ * 包含普通加班和双倍加班,互不冲突
+ */
 const totalOvertimeDays = computed(() => {
   return monthDays.value.reduce((total, day) => {
+    let a = 0
     // 普通加班
     if (day.isMarkedOvertime) {
-      return total + attendancePerShift.value; // 普通加班增加1.5天
+      a = a + attendancePerShift.value; // 普通加班增加1.5天
     }
     // 双倍加班
     if (day.isMarkedDoubleOvertime) {
-      return total + (attendancePerShift.value * 2); // 双倍加班增加3天
+      a = a + (attendancePerShift.value * 2); // 双倍加班增加3天
     }
-    return total;
+    return total + a;
   }, 0);
 });
 
-// 总出勤天数 = 基本出勤 - 请假 + 加班 + 双倍工资
+/**
+ * 计算总出勤天数
+ * 公式：基本出勤 - 请假 + 加班 + 双倍工资
+ */
 const totalAttendance = computed(() => {
   return normalAttendanceDays.value - leaveDays.value + totalOvertimeDays.value + extraDoubleDays.value;
 });
 
-// 出勤工资 = 日薪 × 总出勤天数
+/**
+ * 计算出勤工资
+ * 公式：日薪 × 总出勤天数
+ */
 const attendanceSalary = computed(() => {
   return baseDailySalary.value * totalAttendance.value;
 });
 
-// 预计工资
+/**
+ * 计算预计工资总额
+ * 公式：出勤工资 + 绩效 + 工龄 + 学历补贴 - 保险
+ */
 const calculatedSalary = computed(() => {
   // 出勤工资
   const salary = attendanceSalary.value;
-  
+
   // 加上绩效
   const performance = parseFloat(currentSalarySettings.value.performance) || 0;
-  
+
   // 加上工龄
   const seniority = parseFloat(currentSalarySettings.value.seniority) || 0;
-  
+
   // 加上学历补贴
   const education = parseFloat(currentSalarySettings.value.education) || 0;
-  
+
   // 减去保险
   const insurance = parseFloat(currentSalarySettings.value.insurance) || 0;
-  
+
   return salary + performance + seniority + education - insurance;
 });
 
-// 上个月
+/**
+ * 切换到上一个月
+ * 处理年份和月份的边界情况
+ */
 function prevMonth() {
   if (currentMonth.value === 0) {
     currentYear.value--;
@@ -384,18 +395,12 @@ function prevMonth() {
   } else {
     currentMonth.value--;
   }
-  
-  // 月份变化后通知父组件加载新数据
-  const monthData = {
-    year: currentYear.value,
-    month: currentMonth.value,
-    needReload: true  // 标记需要重新加载数据
-  };
-  console.log('月份变化，请求重新加载数据:', monthData);
-  emit('month-changed', monthData);
 }
 
-// 下个月
+/**
+ * 切换到下一个月
+ * 处理年份和月份的边界情况
+ */
 function nextMonth() {
   if (currentMonth.value === 11) {
     currentYear.value++;
@@ -403,101 +408,49 @@ function nextMonth() {
   } else {
     currentMonth.value++;
   }
-  
-  // 月份变化后通知父组件加载新数据
-  const monthData = {
-    year: currentYear.value,
-    month: currentMonth.value,
-    needReload: true  // 标记需要重新加载数据
-  };
-  console.log('月份变化，请求重新加载数据:', monthData);
-  emit('month-changed', monthData);
 }
 
-// 编辑月度工资设置
+/**
+ * 打开月度工资设置弹窗
+ */
 function editMonthSalarySettings() {
-  // 设置初始值为当前使用的工资设置
-  editingSalarySettings.value = { ...currentSalarySettings.value };
   monthSettingsPopup.value = true;
 }
 
-// 保存月度工资设置
-function onMonthSettingsSaved(settings) {
-  // 构建正确的设置对象格式
-  const settingsToSave = {
-    month: {
-      year: Number(currentYear.value),
-      month: Number(currentMonth.value)
-    },
-    salarySettings: settings
-  };
-  
-  console.log('保存月度工资设置，准备传递给父组件:', {
-    month: settingsToSave.month,
-    settingsData: settingsToSave.salarySettings ? '工资设置对象' : 'null',
-    monthKey: `${settingsToSave.month.year}-${String(settingsToSave.month.month + 1).padStart(2, '0')}`
-  });
-  
-  // 通知父组件更新工资设置
-  emit('salary-settings-updated', settingsToSave);
-  monthSettingsPopup.value = false;
-  
-  // 显示成功消息
-  showToast({
-    type: 'success',
-    message: `已保存${currentYear.value}年${currentMonth.value + 1}月的工资设置`
-  });
-}
-
-// 导航到日历页面，查看本月日历
-function navigateToCalendar() {
-  // 确保使用数字类型的年月
-  const monthData = { 
-    year: Number(currentYear.value), 
-    month: Number(currentMonth.value),
-    navigateToCalendar: true  // 标记需要切换到日历视图
-  };
-  
-  console.log('从工资计算器导航到日历:', monthData);
-  emit('month-changed', monthData);
-}
-
-// 导航到工资设置页面
-function navigateToSalarySettings() {
-  // 通知父组件切换到工资设置页面
-  emit('salary-settings-updated', { goToSettings: true });
-}
-
-// 计算指定日期的班次和任务信息
+/**
+ * 计算指定日期的班次和任务信息
+ * @param {Date} date - 需要计算班次的日期
+ * @returns {Object|null} 班次信息对象或null
+ */
 function getShiftInfo(date) {
   // 确保startDate是日期对象
-  const startDate = new Date(props.startDate);
-  startDate.setHours(0, 0, 0, 0);
-  
+  const startDateObj = new Date(startDate.value);
+  startDateObj.setHours(0, 0, 0, 0);
+
   // 确保date是日期对象
   const targetDate = new Date(date);
   targetDate.setHours(0, 0, 0, 0);
-  
+
   // 计算天数差异
-  const msDiff = targetDate.getTime() - startDate.getTime();
+  const msDiff = targetDate.getTime() - startDateObj.getTime();
   const daysDiff = Math.floor(msDiff / (1000 * 60 * 60 * 24));
-  
+
   // 计算在18天循环中的位置 (0-17)
   const position = ((daysDiff % 18) + 18) % 18;
-  
+
   // 计算当前任务ID (1-6)
   const taskId = Math.floor(position / 3) + 1;
-  
+
   // 计算班次类型（每个任务的3天内，依次是白班→夜班→休息日）
   const cyclePosition = position % 3;
   const isDay = cyclePosition === 0;
   const isNight = cyclePosition === 1;
   const isRest = cyclePosition === 2;
-  
+
   // 查找任务对象
-  const task = props.tasks.find(t => t.id === taskId);
+  const task = tasks.value.find(t => t.id === taskId);
   if (!task) return null;
-  
+
   return {
     taskId,
     taskName: task.name,
@@ -509,7 +462,11 @@ function getShiftInfo(date) {
   };
 }
 
-// 格式化日期键
+/**
+ * 格式化日期为统一的字符串格式
+ * @param {Date} date - 需要格式化的日期
+ * @returns {string} 格式化后的日期字符串 (YYYY-MM-DD)
+ */
 function formatDateKey(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -517,30 +474,54 @@ function formatDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
-// 监视月份变化
-watch([currentYear, currentMonth], () => {
-  // 当月份变化时，如果有打开工资设置弹窗，则更新编辑的工资设置
-  if (monthSettingsPopup.value) {
-    editingSalarySettings.value = { ...currentSalarySettings.value };
+/**
+ * 处理月份选择
+ * 更新currentYear和currentMonth
+ */
+function onMonthSelected(value) {
+  console.log('选择的日期：', value);
+  if (value && Array.isArray(value) && value.length >= 2) {
+    // 从数组中提取年月
+    const year = parseInt(value[0]);
+    // 月份需要减1，因为JavaScript月份从0开始
+    const month = parseInt(value[1]) - 1;
+    
+    currentYear.value = year;
+    currentMonth.value = month;
+    
+    // 更新currentDateArray，确保同步
+    currentDateArray.value = [
+      year.toString(),
+      (month + 1).toString().padStart(2, '0')
+    ];
   }
-  
-  // 告知父组件，可能需要重新加载数据
-  console.log('月份已变更，可能需要重新加载数据');
-  emit('month-changed', { year: currentYear.value, month: currentMonth.value });
+  showMonthPicker.value = false;
+}
+
+// 监听年月变化，更新选择器数组
+watch([currentYear, currentMonth], ([newYear, newMonth]) => {
+  currentDateArray.value = [
+    newYear.toString(),
+    (newMonth + 1).toString().padStart(2, '0')
+  ];
 });
+
 </script>
 
 <style scoped>
+/* 组件容器样式 */
 .salary-calculator {
   padding: 16px;
 }
 
+/* 标题样式 */
 h2 {
   text-align: center;
   margin-bottom: 16px;
   color: #4caf50;
 }
 
+/* 工资容器样式 */
 .salary-container {
   background-color: #fff;
   border-radius: 8px;
@@ -549,11 +530,13 @@ h2 {
   overflow: hidden;
 }
 
+/* 月份选择器样式 */
 .month-selector {
   padding: 16px;
   border-bottom: 1px solid #f2f2f2;
 }
 
+/* 月份导航样式 */
 .month-navigation {
   display: flex;
   justify-content: space-between;
@@ -566,6 +549,7 @@ h2 {
   font-weight: bold;
 }
 
+/* 工资设置状态样式 */
 .salary-settings-status {
   display: flex;
   justify-content: space-between;
@@ -598,6 +582,7 @@ h2 {
   margin-right: 4px;
 }
 
+/* 工资详情样式 */
 .salary-details {
   padding: 16px;
 }
@@ -639,6 +624,7 @@ h2 {
   color: #4caf50;
 }
 
+/* 操作按钮样式 */
 .salary-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -646,6 +632,7 @@ h2 {
   margin-top: 16px;
 }
 
+/* 信息卡片样式 */
 .info-card {
   margin-top: 16px;
   background-color: #f5f5f5;
@@ -667,6 +654,7 @@ h2 {
   font-weight: bold;
 }
 
+/* 弹窗相关样式 */
 .popup-container {
   padding: 16px;
   height: 100%;
@@ -718,21 +706,37 @@ h2 {
   overflow-y: auto;
 }
 
+/* 响应式样式 */
 @media (max-width: 768px) {
   .salary-actions {
     grid-template-columns: 1fr;
   }
-  
+
   .month-selector {
     padding: 12px;
   }
-  
+
   .month-navigation span {
     font-size: 14px;
   }
-  
+
   .card-title {
     font-size: 14px;
   }
+}
+
+.month-display {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.month-display:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.month-display:active {
+  background-color: rgba(0, 0, 0, 0.1);
 }
 </style> 

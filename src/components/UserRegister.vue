@@ -45,23 +45,20 @@
 <script setup>
 import { ref } from 'vue';
 import { showToast } from 'vant';
-import { useApiService } from '../composables/useApiService';
-
-// 获取API服务
-const apiService = useApiService();
+import apiService from '../services/api';
 
 // 定义emit
 const emit = defineEmits(['switch-to-login']);
 
-// 响应式数据
+// 数据
 const username = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 const loading = ref(false);
 
-// 验证密码是否匹配
-function validatePasswordMatch() {
-  return password.value === confirmPassword.value;
+// 密码确认验证
+function validatePasswordMatch(val) {
+  return val === password.value;
 }
 
 // 提交表单
@@ -69,6 +66,15 @@ async function onSubmit() {
   loading.value = true;
   
   try {
+    // 检查两次密码是否一致
+    if (password.value !== confirmPassword.value) {
+      showToast({
+        type: 'fail',
+        message: '两次密码输入不一致'
+      });
+      return;
+    }
+    
     // 使用API服务发送注册请求
     await apiService.auth.register({
       username: username.value,
@@ -81,38 +87,27 @@ async function onSubmit() {
       message: '注册成功，请登录'
     });
     
-    // 切换到登录页面
+    // 清空表单
+    username.value = '';
+    password.value = '';
+    confirmPassword.value = '';
+    
+    // 延迟切换到登录视图
     setTimeout(() => {
-      emit('switch-to-login');
-    }, 1000);
+      switchToLogin();
+    }, 1500);
   } catch (error) {
-    // 显示错误信息
-    let errorMsg = '注册失败';
-    
-    // 如果有具体错误信息，则显示
-    if (error.response && error.response.data) {
-      if (typeof error.response.data === 'string') {
-        errorMsg = error.response.data;
-      } else if (error.response.data.message) {
-        errorMsg = error.response.data.message;
-      }
-    } else if (error.code === 'ERR_NETWORK') {
-      errorMsg = '网络连接失败，请检查网络';
-    } else if (error.message) {
-      errorMsg = error.message;
-    }
-    
+    // 注册失败，显示错误消息
     showToast({
       type: 'fail',
-      message: errorMsg
+      message: '注册失败：' + (error.response?.data?.message || error.message || '未知错误')
     });
-    console.error('注册错误:', error);
   } finally {
     loading.value = false;
   }
 }
 
-// 切换到登录页面
+// 切换到登录视图
 function switchToLogin() {
   emit('switch-to-login');
 }

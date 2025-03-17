@@ -7,38 +7,109 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watchEffect } from 'vue';
-import { useApiService } from '../composables/useApiService';
+import { ref, onMounted, onUnmounted } from 'vue';
+import { apiClient } from '../services/api';
 
+/**
+ * 控制加载状态的显示
+ */
 const show = ref(false);
-const apiService = useApiService();
 
-// 监听loading状态变化
+/**
+ * 拦截器ID，用于移除拦截器
+ */
+let requestInterceptorId = null;
+let responseInterceptorId = null;
+
+/**
+ * 请求计数器
+ */
+let requestCount = 0;
+
+/**
+ * 更新加载状态的函数
+ */
+function updateLoadingState() {
+  if (requestCount > 0) {
+    // 添加短延迟，避免过快的请求导致闪烁
+    setTimeout(() => {
+      if (requestCount > 0) {
+        show.value = true;
+      }
+    }, 300);
+  } else {
+    show.value = false;
+  }
+}
+
+/**
+ * 减少请求计数的函数
+ */
+function decrementRequestCount() {
+  requestCount = Math.max(0, requestCount - 1);
+  updateLoadingState();
+}
+
+/**
+ * 添加axios请求和响应拦截器
+ */
 onMounted(() => {
-  // 使用watchEffect监听apiService.loading的变化
-  watchEffect(() => {
-    const isLoading = apiService.loading.value;
-    
-    // 加入短暂延迟，避免闪烁
-    if (isLoading) {
-      const timer = setTimeout(() => {
-        if (apiService.loading.value) {
-          show.value = true;
-        }
-      }, 300);
-      
-      // 确保在watchEffect重新运行时清除定时器
-      return () => clearTimeout(timer);
-    } else {
-      show.value = false;
+  // 添加请求拦截器
+  requestInterceptorId = apiClient.interceptors.request.use(
+    config => {
+      // 增加请求计数
+      requestCount++;
+      updateLoadingState();
+      return config;
+    },
+    error => {
+      decrementRequestCount();
+      return Promise.reject(error);
     }
-  });
+  );
+
+  // 添加响应拦截器
+  responseInterceptorId = apiClient.interceptors.response.use(
+    response => {
+      decrementRequestCount();
+      return response;
+    },
+    error => {
+      decrementRequestCount();
+      return Promise.reject(error);
+    }
+  );
 });
 
-// 导出方法供外部调用
+/**
+ * 组件卸载时移除拦截器
+ */
+onUnmounted(() => {
+  if (requestInterceptorId !== null) {
+    apiClient.interceptors.request.eject(requestInterceptorId);
+  }
+  if (responseInterceptorId !== null) {
+    apiClient.interceptors.response.eject(responseInterceptorId);
+  }
+});
+
+/**
+ * 导出方法供外部调用
+ */
 defineExpose({
-  showLoading: () => { show.value = true; },
-  hideLoading: () => { show.value = false; }
+  /**
+   * 显示加载状态
+   */
+  showLoading: () => { 
+    show.value = true; 
+  },
+  
+  /**
+   * 隐藏加载状态
+   */
+  hideLoading: () => { 
+    show.value = false; 
+  }
 });
 </script>
 

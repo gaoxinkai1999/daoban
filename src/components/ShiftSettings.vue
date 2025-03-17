@@ -22,223 +22,185 @@
         </div>
       </div>
       
-      <div class="info-section">
-        <h3>任务睡觉时间</h3>
-        <div class="info-item">
-          <span class="info-label">一采:</span>
-          <span class="info-value">23:00睡觉</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">二采:</span>
-          <span class="info-value">02:00睡觉</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">三采:</span>
-          <span class="info-value">21:00睡觉</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">一休:</span>
-          <span class="info-value">21:00睡觉</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">二休:</span>
-          <span class="info-value">02:00睡觉</span>
-        </div>
-        <div class="info-item">
-          <span class="info-label">三休:</span>
-          <span class="info-value">23:00睡觉</span>
-        </div>
-        <div class="info-item info-note">
-          <span class="info-value">* 睡觉时间仅在夜班时显示</span>
-        </div>
-      </div>
-      
       <div class="settings-actions">
         <button @click="saveSettings" class="save-button">保存设置</button>
-        <button @click="resetToDefault" class="reset-button">恢复默认</button>
-        <button @click="goToSalarySettings" class="salary-button">工资设置</button>
       </div>
     </div>
   </div>
 </template>
 
-<script>
+<script setup>
+import { ref, onMounted } from 'vue';
 import { showToast } from 'vant';
+import { useUserStore } from '@/stores/user';
+import { storeToRefs } from 'pinia';
 
-export default {
-  name: 'ShiftSettings',
-  props: {
-    value: {
-      type: Object,
-      required: true
-    }
-  },
-  data() {
-    return {
-      todayTaskId: 1,
-      todayShiftType: 'day',
-      // 固定的任务配置
-      tasks: [
-        { id: 1, name: '一采', restTime: '3小时', sleepTime: '23:00', taskClass: 'task-1' },
-        { id: 2, name: '二采', restTime: '2小时', sleepTime: '02:00', taskClass: 'task-2' },
-        { id: 3, name: '三采', restTime: '休息', sleepTime: '21:00', taskClass: 'task-3' },
-        { id: 4, name: '一休', restTime: '休息', sleepTime: '21:00', taskClass: 'task-4' },
-        { id: 5, name: '二休', restTime: '休息', sleepTime: '02:00', taskClass: 'task-5' },
-        { id: 6, name: '三休', restTime: '休息', sleepTime: '23:00', taskClass: 'task-6' }
-      ]
-    };
-  },
-  created() {
-    // 初始化从父组件接收的数据
-    if (this.value && this.value.initialTaskId) {
-      this.todayTaskId = this.value.initialTaskId;
-    }
-  },
-  methods: {
-    adjustBasedOnToday() {
-      // 使用18天循环模式计算设置
-      const today = new Date();
-      const taskId = parseInt(this.todayTaskId);
-      
-      // 验证任务ID
-      if (isNaN(taskId) || taskId < 1 || taskId > 6) {
-        console.error('无效的任务ID:', this.todayTaskId);
-        return;
-      }
-      
-      // 根据18天循环模式计算开始日期
-      /*
-       * 18天循环: 
-       * 0-2天: 任务1(一采)的白班、夜班、休息日
-       * 3-5天: 任务2(二采)的白班、夜班、休息日
-       * 以此类推...
-       */
-      
-      // 每个任务用3天，计算当前任务在循环中的起始位置
-      const taskStartPosition = (taskId - 1) * 3;
-      
-      // 根据班次类型计算当前在这3天中的位置
-      let dayOffset = 0;
-      if (this.todayShiftType === 'day') {
-        dayOffset = 0; // 白班是每个任务的第一天
-      } else if (this.todayShiftType === 'night') {
-        dayOffset = 1; // 夜班是每个任务的第二天
-      } else if (this.todayShiftType === 'rest') {
-        dayOffset = 2; // 休息日是每个任务的第三天
-      }
-      
-      // 当前位置 = 任务起始位置 + 班次偏移
-      const currentPosition = taskStartPosition + dayOffset;
-      
-      // 计算开始日期
-      // 开始日期 = 今天 - currentPosition
-      let startDate = new Date(today);
-      startDate.setHours(0, 0, 0, 0); // 确保是当天的零点
-      startDate.setDate(startDate.getDate() - currentPosition);
-      
-      console.log(`计算设置: 今天是${this.tasks.find(t => t.id === taskId).name}的${this.todayShiftType}，` + 
-                  `在18天循环中的位置是${currentPosition}，` +
-                  `开始日期=${startDate.toISOString()}`);
-      
-      // 更新设置
-      this.emitSettingsChange(startDate);
-    },
-    
-    emitSettingsChange(startDate) {
-      // 验证
-      if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
-        console.error('无效的开始日期:', startDate);
-        startDate = new Date(); // 使用今天作为后备
-        startDate.setHours(0, 0, 0, 0); // 确保是当天的零点
-      }
-      
-      this.$emit('input', {
-        startDate,
-        initialTaskId: 1, // 固定为1，因为我们总是从一采开始计算
-        tasks: this.tasks
-      });
-    },
-    
-    saveSettings() {
-      // 使用18天循环模式保存设置
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // 确保是当天的零点
-      const taskId = parseInt(this.todayTaskId);
-      
-      // 验证任务ID
-      if (isNaN(taskId) || taskId < 1 || taskId > 6) {
-        console.error('无效的任务ID');
-        showToast({
-          type: 'fail',
-          message: '请选择有效的任务'
-        });
-        return;
-      }
-      
-      // 计算在18天循环中的位置
-      const taskStartPosition = (taskId - 1) * 3;
-      
-      // 根据班次类型计算偏移
-      let dayOffset = 0;
-      if (this.todayShiftType === 'day') {
-        dayOffset = 0; // 白班是第一天
-      } else if (this.todayShiftType === 'night') {
-        dayOffset = 1; // 夜班是第二天
-      } else if (this.todayShiftType === 'rest') {
-        dayOffset = 2; // 休息日是第三天
-      }
-      
-      // 计算当前位置和开始日期
-      const currentPosition = taskStartPosition + dayOffset;
-      let startDate = new Date(today);
-      startDate.setDate(startDate.getDate() - currentPosition);
-      
-      // 验证计算出的开始日期
-      if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
-        console.error('计算得到无效的开始日期:', startDate);
-        showToast({
-          type: 'fail',
-          message: '设置保存失败: 日期计算错误'
-        });
-        return;
-      }
-      
-      // 创建新的设置对象
-      const settings = {
-        startDate: startDate,  // 保持为Date对象
-        initialTaskId: 1       // 固定为1，因为循环总是从一采开始
-      };
-      
-      console.log('保存设置:', settings, 
-                 `(今天是${this.tasks.find(t => t.id === taskId).name}的${this.todayShiftType}，` +
-                 `18天循环位置=${currentPosition})`);
-                 
-      // 触发保存事件，传递设置对象给父组件
-      this.$emit('saved', settings);
-    },
-    
-    resetToDefault() {
-      // 恢复默认设置
-      this.todayTaskId = 1;
-      this.todayShiftType = 'day';
-      
-      const defaultStartDate = new Date();
-      defaultStartDate.setHours(0, 0, 0, 0); // 确保是当天的零点
-      this.emitSettingsChange(defaultStartDate);
-    },
-    
-    formatDateForInput(date) {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    },
-    
-    goToSalarySettings() {
-      this.$emit('goToSalarySettings');
-    }
+
+// 使用用户store
+const userStore = useUserStore();
+const { settings } = storeToRefs(userStore);
+
+// 响应式状态
+const todayTaskId = ref(1);
+const todayShiftType = ref('day');
+
+// 固定的任务配置
+const tasks = [
+  { id: 1, name: '一采', restTime: '3小时', sleepTime: '23:00', taskClass: 'task-1' },
+  { id: 2, name: '二采', restTime: '2小时', sleepTime: '02:00', taskClass: 'task-2' },
+  { id: 3, name: '三采', restTime: '休息', sleepTime: '21:00', taskClass: 'task-3' },
+  { id: 4, name: '一休', restTime: '休息', sleepTime: '21:00', taskClass: 'task-4' },
+  { id: 5, name: '二休', restTime: '休息', sleepTime: '02:00', taskClass: 'task-5' },
+  { id: 6, name: '三休', restTime: '休息', sleepTime: '23:00', taskClass: 'task-6' }
+];
+
+// 初始化数据
+onMounted(() => {
+  // 初始化从store或props接收的数据
+  const settingsData =  settings.value;
+  if (settingsData && settingsData.initialTaskId) {
+    todayTaskId.value = settingsData.initialTaskId;
   }
-};
+});
+
+/**
+ * 根据今天的班次调整设置
+ */
+function adjustBasedOnToday() {
+  // 使用18天循环模式计算设置
+  const today = new Date();
+  const taskId = parseInt(todayTaskId.value);
+  
+  // 验证任务ID
+  if (isNaN(taskId) || taskId < 1 || taskId > 6) {
+    console.error('无效的任务ID:', todayTaskId.value);
+    return;
+  }
+  
+  // 根据18天循环模式计算开始日期
+  /*
+   * 18天循环: 
+   * 0-2天: 任务1(一采)的白班、夜班、休息日
+   * 3-5天: 任务2(二采)的白班、夜班、休息日
+   * 以此类推...
+   */
+  
+  // 每个任务用3天，计算当前任务在循环中的起始位置
+  const taskStartPosition = (taskId - 1) * 3;
+  
+  // 根据班次类型计算当前在这3天中的位置
+  let dayOffset = 0;
+  if (todayShiftType.value === 'day') {
+    dayOffset = 0; // 白班是每个任务的第一天
+  } else if (todayShiftType.value === 'night') {
+    dayOffset = 1; // 夜班是每个任务的第二天
+  } else if (todayShiftType.value === 'rest') {
+    dayOffset = 2; // 休息日是每个任务的第三天
+  }
+  
+  // 当前位置 = 任务起始位置 + 班次偏移
+  const currentPosition = taskStartPosition + dayOffset;
+  
+  // 计算开始日期
+  // 开始日期 = 今天 - currentPosition
+  let startDate = new Date(today);
+  startDate.setHours(0, 0, 0, 0); // 确保是当天的零点
+  startDate.setDate(startDate.getDate() - currentPosition);
+  
+  console.log(`计算设置: 今天是${tasks.find(t => t.id === taskId).name}的${todayShiftType.value}，` + 
+               `在18天循环中的位置是${currentPosition}，` +
+               `开始日期=${startDate.toISOString()}`);
+  
+  // 更新设置
+  emitSettingsChange(startDate);
+}
+
+/**
+ * 发送设置变更事件
+ * @param {Date} startDate - 开始日期
+ */
+function emitSettingsChange(startDate) {
+  if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
+    console.error('无效的开始日期:', startDate);
+    startDate = new Date(); // 使用今天作为后备
+    startDate.setHours(0, 0, 0, 0); // 确保是当天的零点
+  }
+  
+  const settingsData = {
+    startDate,
+    initialTaskId: 1, // 固定为1，因为我们总是从一采开始计算
+    tasks: tasks
+  };
+
+  // 同时更新store
+  userStore.updateSettings(settingsData);
+}
+
+/**
+ * 保存设置
+ */
+function saveSettings() {
+  // 使用18天循环模式保存设置
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // 确保是当天的零点
+  const taskId = parseInt(todayTaskId.value);
+  
+  // 验证任务ID
+  if (isNaN(taskId) || taskId < 1 || taskId > 6) {
+    console.error('无效的任务ID');
+    showToast({
+      type: 'fail',
+      message: '请选择有效的任务'
+    });
+    return;
+  }
+  
+  // 计算在18天循环中的位置
+  const taskStartPosition = (taskId - 1) * 3;
+  
+  // 根据班次类型计算偏移
+  let dayOffset = 0;
+  if (todayShiftType.value === 'day') {
+    dayOffset = 0; // 白班是第一天
+  } else if (todayShiftType.value === 'night') {
+    dayOffset = 1; // 夜班是第二天
+  } else if (todayShiftType.value === 'rest') {
+    dayOffset = 2; // 休息日是第三天
+  }
+  
+  // 计算当前位置和开始日期
+  const currentPosition = taskStartPosition + dayOffset;
+  let startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - currentPosition);
+  
+  // 验证计算出的开始日期
+  if (!(startDate instanceof Date) || isNaN(startDate.getTime())) {
+    console.error('计算得到无效的开始日期:', startDate);
+    showToast({
+      type: 'fail',
+      message: '设置保存失败: 日期计算错误'
+    });
+    return;
+  }
+  
+  // 创建新的设置对象
+  const settings = {
+    startDate: startDate,  // 保持为Date对象
+    initialTaskId: 1,      // 固定为1，因为循环总是从一采开始
+    tasks: tasks           // 包含任务数据
+  };
+  
+  console.log('保存设置:', settings, 
+              `(今天是${tasks.find(t => t.id === taskId).name}的${todayShiftType.value}，` +
+              `18天循环位置=${currentPosition})`);
+
+  
+  // 同时更新store
+  const success =userStore.updateSettings(settings);
+  if (success) {
+    showToast({ type: 'success', message: '设置保存成功' });
+  }
+}
 </script>
 
 <style scoped>

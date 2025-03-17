@@ -109,36 +109,25 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { showToast } from 'vant';
+import { useUserStore } from '../stores/user';
+import { storeToRefs } from 'pinia';
 
-// 定义props
+// 定义props - 保留month prop用于确定编辑哪个月份的设置
 const props = defineProps({
-  modelValue: {
-    type: Object,
-    default: () => ({
-      baseSalary: 5000,
-      performance: 800,
-      seniority: 500,
-      insurance: 600,
-      education: 0
-    })
-  },
   month: {
     type: [Object, String],
     default: null
-  },
-  monthlySalarySettings: {
-    type: Object,
-    default: () => ({})
   }
 });
 
-// 定义事件
-const emit = defineEmits(['update:modelValue', 'saved']);
+// 使用用户store
+const userStore = useUserStore();
+// 使用storeToRefs获取响应式引用
+const { salarySettings, monthlySalarySettings } = storeToRefs(userStore);
 
 // 状态
-const formData = ref({ ...props.modelValue });
 const canReset = ref(false);
 
 // 当前月份键，用于本地存储
@@ -162,156 +151,241 @@ const monthKey = computed(() => {
   return key;
 });
 
-// 检查是否有月度设置
+// 获取当前编辑的设置数据
+const currentSettings = computed(() => {
+  // 如果是编辑特定月份
+  if (props.month) {
+    const key = monthKey.value;
+    console.log('查找月份设置:', key);
+    
+    // 从月独立设置数组中查找对应月份的设置
+    if (monthlySalarySettings.value && Array.isArray(monthlySalarySettings.value)) {
+      const monthSetting = monthlySalarySettings.value.find(
+        item => item.month === key
+      );
+      
+      if (monthSetting) {
+        console.log(`找到 ${key} 月的专属设置:`, monthSetting);
+        return monthSetting;
+      }
+    }
+    
+    console.log(`未找到 ${key} 月的专属设置，使用默认设置`);
+  }
+  
+  // 默认使用全局设置
+  console.log('使用默认工资设置:', salarySettings.value);
+  return salarySettings.value;
+});
+
+// 表单数据
+const formData = ref({});
+
+// 监听currentSettings变化，更新表单数据
+watch(currentSettings, (newValue) => {
+  formData.value = { ...newValue };
+}, { immediate: true });
+
+// 初始化检查
 onMounted(() => {
   if (props.month) {
-    // 通过props判断是否有月度设置
-    const monthKeyStr = monthKey.value;
+    // 检查是否有月度设置
+    const key = monthKey.value;
     
     // 详细记录月份信息
     console.log('当前月份信息:', {
       month: props.month,
-      monthKey: monthKeyStr,
-      monthlySettings: props.monthlySalarySettings
+      monthKey: key
     });
     
-    // 检查monthlySalarySettings中是否包含当前月份的数据
-    const hasMonthlySetting = props.monthlySalarySettings && 
-                          Object.prototype.hasOwnProperty.call(props.monthlySalarySettings, monthKeyStr);
+    // 检查是否有该月的专属设置
+    let hasMonthlySetting = false;
     
-    console.log(`检查月份 ${monthKeyStr} 是否有专属工资设置:`, hasMonthlySetting);
-    
-    if (hasMonthlySetting) {
-      console.log(`${monthKeyStr} 月专属工资设置:`, props.monthlySalarySettings[monthKeyStr]);
-    } else {
-      console.log(`${monthKeyStr} 月使用默认工资设置:`, props.modelValue);
+    if (monthlySalarySettings.value && 
+        Array.isArray(monthlySalarySettings.value)) {
+      
+      hasMonthlySetting = monthlySalarySettings.value.some(
+        item => item.month === key
+      );
     }
     
-    canReset.value = !!hasMonthlySetting;
+    console.log(`检查月份 ${key} 是否有专属工资设置:`, hasMonthlySetting);
+    
+    if (hasMonthlySetting) {
+      const monthSetting = monthlySalarySettings.value.find(
+        item => item.month === key
+      );
+      console.log(`${key} 月专属工资设置:`, monthSetting);
+    } else {
+      console.log(`${key} 月使用默认工资设置:`, salarySettings.value);
+    }
+    
+    canReset.value = hasMonthlySetting;
   }
 });
 
 // 保存设置
 function saveSettings() {
-  console.log('保存前的表单数据:', formData.value);
+  // 记录原始表单数据
+  console.log('保存前的原始表单数据:', formData.value);
   
-  // 过滤掉空值并转换为数字
-  const filteredData = Object.entries(formData.value).reduce((acc, [key, value]) => {
-    // 确保数值有效
+  // 数据验证和格式化
+  const processedData = validateAndFormatData(formData.value);
+  
+  // 更新表单数据为处理后的数据
+  formData.value = { ...processedData };
+  
+  // 直接使用store保存数据
+  if (props.month) {
+    saveMonthlySettings(processedData);
+  } else {
+    saveGlobalSettings(processedData);
+  }
+}
+
+/**
+ * 验证并格式化表单数据
+ * @param {Object} data - 原始表单数据
+ * @returns {Object} 处理后的数据
+ */
+function validateAndFormatData(data) {
+  // 转换所有字段为有效数字
+  return Object.entries(data).reduce((acc, [key, value]) => {
+    // 尝试解析为数字
     let numValue = parseFloat(value);
-    // 如果无效则设为0
+    
+    // 如果非有效数字，设置为0
     if (isNaN(numValue)) {
       console.warn(`字段 ${key} 值 "${value}" 无效，设为0`);
       numValue = 0;
     }
+    
     acc[key] = numValue;
     return acc;
   }, {});
+}
+
+/**
+ * 保存月份特定工资设置
+ * @param {Object} settingsData - 已处理的工资设置数据
+ */
+function saveMonthlySettings(settingsData) {
+  // 标准化月份对象
+  const monthObject = normalizeMonthObject(props.month);
   
-  console.log('过滤后的数据:', filteredData);
+  // 构建月份键 (YYYY-MM格式)
+  const monthKey = `${monthObject.year}-${String(monthObject.month + 1).padStart(2, '0')}`;
+  console.log(`保存月度工资设置 - 月份键: ${monthKey}`, settingsData);
   
-  // 更新表单数据
-  formData.value = { ...filteredData };
+  // 创建深拷贝，避免引用问题
+  const settingsCopy = JSON.parse(JSON.stringify(settingsData));
   
-  // 发出更新事件
-  emit('update:modelValue', { ...formData.value });
+  // 添加month字段到设置数据中
+  settingsCopy.month = monthKey;
   
-  // 根据是否有月份参数决定保存方式
-  if (props.month) {
-    // 处理月份对象
-    let monthObj;
-    
-    if (typeof props.month === 'string') {
-      // 如果是字符串格式 "YYYY-MM"，则解析
-      const parts = props.month.split('-');
-      monthObj = { 
-        year: Number(parts[0]), 
-        month: Number(parts[1]) - 1 
-      };
-      console.log(`从字符串解析的月份对象: 年=${monthObj.year}, 月=${monthObj.month}`);
-    } else {
-      // 确保月份数据为数字类型
-      monthObj = {
-        year: Number(props.month.year),
-        month: Number(props.month.month)
-      };
-      console.log(`转换为数字的月份对象: 年=${monthObj.year}, 月=${monthObj.month}`);
-    }
-    
-    // 格式化月份键用于日志
-    const monthKey = `${monthObj.year}-${String(monthObj.month + 1).padStart(2, '0')}`;
-    console.log(`保存月度工资设置 - 月份键: ${monthKey}, 数据:`, { ...formData.value });
-    
-    // 深拷贝数据避免引用问题
-    const formDataCopy = JSON.parse(JSON.stringify(formData.value));
-    
-    // 触发saved事件
-    emit('saved', {
-      month: monthObj,
-      salarySettings: formDataCopy
-    });
-    
+  // 调用store方法更新月度设置
+  const success = userStore.updateMonthlySalarySettings({
+    type: 'monthly',
+    settings: settingsCopy
+  });
+  
+  // 根据结果显示消息
+  if (success) {
     // 标记该月有自定义设置
     canReset.value = true;
     
-    // 显示成功消息
     showToast({
       type: 'success',
-      message: `已保存${monthObj.year}年${monthObj.month + 1}月工资设置`
+      message: `已保存${monthObject.year}年${monthObject.month + 1}月工资设置`
     });
+    
+    // 如果是在弹窗中打开的，则关闭弹窗
+    closePopupIfNeeded();
   } else {
-    // 默认设置
-    console.log('保存默认工资设置:', { ...formData.value });
-    
-    // 深拷贝数据避免引用问题
-    const formDataCopy = JSON.parse(JSON.stringify(formData.value));
-    
-    emit('saved', {
-      month: null,
-      salarySettings: formDataCopy
+    showToast({
+      type: 'fail',
+      message: `保存${monthObject.year}年${monthObject.month + 1}月工资设置失败`
     });
-    
+  }
+}
+
+/**
+ * 保存全局默认工资设置
+ * @param {Object} settingsData - 已处理的工资设置数据
+ */
+function saveGlobalSettings(settingsData) {
+  console.log('保存默认工资设置:', settingsData);
+  
+  // 创建深拷贝，避免引用问题
+  const settingsCopy = JSON.parse(JSON.stringify(settingsData));
+  
+  // 调用store方法更新默认设置
+  const success = userStore.updateMonthlySalarySettings({
+    type: 'default',
+    settings: settingsCopy
+  });
+  
+  // 根据结果显示消息
+  if (success) {
     showToast({
       type: 'success',
       message: '已保存默认工资设置'
     });
+    
+    // 关闭设置页面，返回到工资计算页面
+    navigateToSalaryCalculator();
+  } else {
+    showToast({
+      type: 'fail',
+      message: '保存默认工资设置失败'
+    });
+  }
+}
+
+/**
+ * 标准化月份对象格式
+ * @param {Object|String} monthInput - 月份输入（对象或字符串）
+ * @returns {Object} 标准化的月份对象 {year: Number, month: Number}
+ */
+function normalizeMonthObject(monthInput) {
+  if (typeof monthInput === 'string') {
+    // 解析字符串格式 "YYYY-MM"
+    const parts = monthInput.split('-');
+    return { 
+      year: Number(parts[0]), 
+      month: Number(parts[1]) - 1  // 转换为JS 0-11月份格式
+    };
+  } else {
+    // 确保对象格式的月份数据为数字类型
+    return {
+      year: Number(monthInput.year),
+      month: Number(monthInput.month)
+    };
   }
 }
 
 // 重置为默认设置
 function resetToDefault() {
-  if (props.month) {
-    console.log('重置月度设置，原始月份数据:', props.month);
-    
-    // 处理月份对象
-    let monthObj;
-    
-    if (typeof props.month === 'string') {
-      // 如果是字符串格式 "YYYY-MM"，则解析
-      const parts = props.month.split('-');
-      monthObj = { 
-        year: Number(parts[0]), 
-        month: Number(parts[1]) - 1 
-      };
-      console.log(`从字符串解析的月份对象: 年=${monthObj.year}, 月=${monthObj.month}`);
-    } else {
-      // 确保月份数据为数字类型
-      monthObj = {
-        year: Number(props.month.year),
-        month: Number(props.month.month)
-      };
-      console.log(`转换为数字的月份对象: 年=${monthObj.year}, 月=${monthObj.month}`);
-    }
-    
-    // 格式化后的月份键
-    const key = `${monthObj.year}-${String(monthObj.month + 1).padStart(2, '0')}`;
-    console.log(`重置月度工资设置，月份键: ${key}`);
-    
-    // 触发事件删除该月的自定义设置
-    emit('saved', {
-      month: monthObj,
-      salarySettings: null // 传null表示删除该月设置
-    });
+  if (!props.month) return;
+  
+  console.log('重置月度设置，原始月份数据:', props.month);
+  
+  // 标准化月份对象
+  const monthObject = normalizeMonthObject(props.month);
+  
+  // 构建月份键 (YYYY-MM格式)
+  const monthKey = `${monthObject.year}-${String(monthObject.month + 1).padStart(2, '0')}`;
+  console.log(`重置月度工资设置，月份键: ${monthKey}`);
+  
+  // 调用store方法删除月度设置
+  const success = userStore.updateMonthlySalarySettings({
+    type: 'remove',
+    monthKey: monthKey
+  });
+  
+  if (success) {
+    // 重置表单数据为默认值
+    formData.value = { ...salarySettings.value };
     
     // 重置状态
     canReset.value = false;
@@ -320,6 +394,47 @@ function resetToDefault() {
       type: 'success',
       message: '已恢复默认工资设置'
     });
+  } else {
+    showToast({
+      type: 'fail',
+      message: '恢复默认工资设置失败'
+    });
+  }
+}
+
+/**
+ * 关闭弹窗（如果组件在弹窗中打开）
+ */
+function closePopupIfNeeded() {
+  // 检查父元素中是否有弹窗相关元素
+  const popupContainer = document.querySelector('.van-popup');
+  if (popupContainer) {
+    // 获取关闭按钮
+    const closeButton = popupContainer.querySelector('.van-icon-cross');
+    if (closeButton) {
+      // 触发点击事件关闭弹窗
+      closeButton.click();
+    } else {
+      console.warn('未找到弹窗关闭按钮');
+    }
+  } else {
+    console.log('组件不在弹窗中打开');
+  }
+}
+
+/**
+ * 导航到工资计算页面
+ */
+function navigateToSalaryCalculator() {
+  // 如果是在App.vue中以独立页面方式打开的
+  const tabs = document.querySelectorAll('.tab');
+  const salaryTab = Array.from(tabs).find(tab => tab.textContent.trim() === '工资计算');
+  
+  if (salaryTab) {
+    // 触发点击事件切换到工资计算Tab
+    salaryTab.click();
+  } else {
+    console.warn('未找到工资计算Tab');
   }
 }
 </script>

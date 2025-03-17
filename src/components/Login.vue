@@ -34,9 +34,7 @@
 <script setup>
 import { ref } from 'vue';
 import { showToast } from 'vant';
-import { useApiService } from '../composables/useApiService';
-
-const apiService = useApiService();
+import apiService from '../services/api';
 
 // 定义emit
 const emit = defineEmits(['login-success', 'switch-to-register']);
@@ -63,38 +61,26 @@ async function onSubmit() {
       message: '登录成功'
     });
     
-    // 跳转到主页面
-    setTimeout(() => {
-      emit('login-success', {
-        username: username.value
-      });
-    }, 1000);
+    // 向父组件发送登录成功事件
+    emit('login-success', {
+      username: username.value
+    });
+    
+    // 清空表单
+    username.value = '';
+    password.value = '';
   } catch (error) {
-    // 显示错误信息
-    let errorMsg = '用户名或密码错误';
-    
-    // 如果有具体错误信息，则显示
-    if (error.response && error.response.data) {
-      if (typeof error.response.data === 'string') {
-        errorMsg = error.response.data;
-      } else if (error.response.data.message) {
-        errorMsg = error.response.data.message;
-      }
-    } else if (error.code === 'ERR_NETWORK') {
-      errorMsg = '网络连接失败，请检查网络';
-    }
-    
+    // 登录失败，显示错误消息
     showToast({
       type: 'fail',
-      message: errorMsg
+      message: '登录失败：' + (error.response?.data?.message || error.message || '未知错误')
     });
-    console.error('登录错误:', error);
   } finally {
     loading.value = false;
   }
 }
 
-// 切换到注册页面
+// 切换到注册视图
 function switchToRegister() {
   emit('switch-to-register');
 }
