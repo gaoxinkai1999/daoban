@@ -46,12 +46,12 @@ const todayShiftType = ref('day');
 
 // 固定的任务配置
 const tasks = [
-  { id: 1, name: '一采', restTime: '3小时', sleepTime: '23:00', taskClass: 'task-1' },
-  { id: 2, name: '二采', restTime: '2小时', sleepTime: '02:00', taskClass: 'task-2' },
-  { id: 3, name: '三采', restTime: '休息', sleepTime: '21:00', taskClass: 'task-3' },
-  { id: 4, name: '一休', restTime: '休息', sleepTime: '21:00', taskClass: 'task-4' },
-  { id: 5, name: '二休', restTime: '休息', sleepTime: '02:00', taskClass: 'task-5' },
-  { id: 6, name: '三休', restTime: '休息', sleepTime: '23:00', taskClass: 'task-6' }
+  { id: 1, name: '一采' },
+  { id: 2, name: '二采' },
+  { id: 3, name: '三采' },
+  { id: 4, name: '一休' },
+  { id: 5, name: '二休' },
+  { id: 6, name: '三休' }
 ];
 
 // 初始化数据
@@ -129,7 +129,7 @@ function emitSettingsChange(startDate) {
   const settingsData = {
     startDate,
     initialTaskId: 1, // 固定为1，因为我们总是从一采开始计算
-    tasks: tasks
+    tasks: userStore.settings.tasks // 使用store中现有的完整任务信息
   };
 
   // 同时更新store
@@ -184,19 +184,19 @@ function saveSettings() {
   }
   
   // 创建新的设置对象
-  const settings = {
+  const newSettings = {
     startDate: startDate,  // 保持为Date对象
     initialTaskId: 1,      // 固定为1，因为循环总是从一采开始
-    tasks: tasks           // 包含任务数据
+    tasks: userStore.settings.tasks  // 使用store中现有的完整任务信息
   };
   
-  console.log('保存设置:', settings, 
+  console.log('保存设置:', newSettings, 
               `(今天是${tasks.find(t => t.id === taskId).name}的${todayShiftType.value}，` +
               `18天循环位置=${currentPosition})`);
 
   
   // 同时更新store
-  const success =userStore.updateSettings(settings);
+  const success = userStore.updateSettings(newSettings);
   if (success) {
     showToast({ type: 'success', message: '设置保存成功' });
   }

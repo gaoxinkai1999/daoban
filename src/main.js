@@ -1,7 +1,6 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import { createPinia } from 'pinia'
-import apiService from './services/api'
 
 /**
  * 导入样式文件
@@ -26,9 +25,6 @@ const app = createApp(App)
  */
 // 使用Pinia
 app.use(pinia)
-
-// 注册API服务为全局属性
-app.config.globalProperties.$api = apiService
 
 /**
  * 挂载应用到DOM

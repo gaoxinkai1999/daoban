@@ -7,76 +7,42 @@
     <!-- 全局加载指示器 -->
     <GlobalLoading />
     
-    <!-- 未登录状态展示登录或注册组件 -->
-    <template v-if="!userStore.isLoggedIn">
-      <UserLogin 
-        v-if="!showRegister" 
-        @login-success="handleLoginSuccess" 
-        @switch-to-register="showRegister = true" 
-      />
-      <UserRegister 
-        v-else 
-        @switch-to-login="showRegister = false" 
-      />
-    </template>
-    
-    <!-- 主应用内容，只有登录后才显示 -->
-    <template v-else>
-      <!-- 应用头部，包含标题、用户信息和导航选项卡 -->
-      <header class="app-header">
-        <h1>倒班日历</h1>
-        
-        <!-- 用户信息和退出按钮 -->
-        <div class="user-info">
-          <span class="username">{{ userStore.username }}</span>
-          <van-button size="small" type="default" @click="handleLogout">退出</van-button>
+    <!-- 应用头部，包含标题和导航选项卡 -->
+    <header class="app-header">
+      <h1>倒班日历</h1>
+      
+      <!-- 导航选项卡 -->
+      <div class="tabs-container">
+        <div class="tabs">
+          <button 
+            :class="['tab', { active: activeTab === 'calendar' }]" 
+            @click="activeTab = 'calendar'"
+          >
+            <van-icon name="calendar-o" size="16" class="tab-icon" />
+            日历
+          </button>
+          <button 
+            :class="['tab', { active: activeTab === 'settings' }]" 
+            @click="activeTab = 'settings'"
+          >
+            <van-icon name="setting-o" size="16" class="tab-icon" />
+            设置
+          </button>
         </div>
-        
-        <!-- 导航选项卡 -->
-        <div class="tabs-container">
-          <div class="tabs">
-            <button 
-              :class="['tab', { active: activeTab === 'calendar' }]" 
-              @click="activeTab = 'calendar'"
-            >
-              日历
-            </button>
-            <button 
-              :class="['tab', { active: activeTab === 'salary' }]" 
-              @click="activeTab = 'salary'"
-            >
-              工资计算
-            </button>
-            <button 
-              :class="['tab', { active: activeTab === 'settings' }]" 
-              @click="activeTab = 'settings'"
-            >
-              设置
-            </button>
-          </div>
-        </div>
-      </header>
+      </div>
+    </header>
 
-      <!-- 主要内容区域，根据activeTab显示不同组件 -->
-      <main class="app-content">
-        <!-- 日历组件 -->
-        <ShiftCalendar 
-          v-if="activeTab === 'calendar'"
-        />
-        <!-- 工资计算组件 -->
-        <SalaryCalculator
-          v-if="activeTab === 'salary'"
-        />
-        <!-- 工资设置组件 -->
-        <SalarySettings
-          v-if="activeTab === 'salary-settings'"
-        />
-        <!-- 班次设置组件 -->
-        <ShiftSettings 
-          v-if="activeTab === 'settings'"
-        />
-      </main>
-    </template>
+    <!-- 主要内容区域，根据activeTab显示不同组件 -->
+    <main class="app-content">
+      <!-- 日历组件 -->
+      <ShiftCalendar 
+        v-if="activeTab === 'calendar'"
+      />
+      <!-- 班次设置组件 -->
+      <ShiftSettings 
+        v-if="activeTab === 'settings'"
+      />
+    </main>
 
     <!-- 应用页脚 -->
     <footer class="app-footer">
@@ -87,49 +53,19 @@
 
 <script setup>
 import { ref } from 'vue';
-
-
-// 导入组件
-import ShiftCalendar from './components/ShiftCalendar.vue';
-import ShiftSettings from './components/ShiftSettings.vue';
-import SalaryCalculator from './components/SalaryCalculator.vue';
-import SalarySettings from './components/SalarySettings.vue';
-import UserLogin from './components/Login.vue';
-import UserRegister from './components/UserRegister.vue';
 import GlobalLoading from './components/GlobalLoading.vue';
 import { useUserStore } from './stores/user';
+import ShiftCalendar from './components/ShiftCalendar.vue';
+import ShiftSettings from './components/ShiftSettings.vue';
 
 // 用ref创建响应式状态
-const showRegister = ref(false);  // 控制显示注册还是登录界面
 const activeTab = ref('calendar'); // 当前活动选项卡
-
 
 // 使用Pinia存储
 const userStore = useUserStore();
 
-/**
- * 处理登录成功
- * 更新用户状态并加载用户数据
- * @param {Object} userData - 登录成功返回的用户数据
- */
-function handleLoginSuccess(userData) {
-  showRegister.value = false;
-  userStore.username = userData.username;
-  userStore.isLoggedIn = true;
-  userStore.loadUserData();
-}
-
-/**
- * 处理登出
- * 调用用户存储的登出方法
- */
-async function handleLogout() {
-  await userStore.logout();
-}
-
-
-
-
+// 初始化加载数据
+userStore.loadUserData();
 </script>
 
 <style>
@@ -153,7 +89,7 @@ body {
 #app {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem;
+  padding: 1.5rem;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -161,34 +97,21 @@ body {
 
 /* 应用头部样式 */
 .app-header {
-  padding: 1rem 0;
-  border-bottom: 1px solid #ddd;
+  padding: 1.5rem 0;
   margin-bottom: 2rem;
   position: relative;
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  color: white;
 }
 
 .app-header h1 {
   text-align: center;
-  margin-bottom: 1rem;
-  color: #4caf50;
-}
-
-/* 用户信息区域样式 */
-.user-info {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  z-index: 10; /* 添加z-index确保显示在最上层 */
-}
-
-.username {
-  font-size: 14px;
-  font-weight: 500;
-  white-space: nowrap;
+  margin-bottom: 1.5rem;
+  color: white;
+  font-size: 2.2rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* 选项卡容器样式 */
@@ -203,7 +126,7 @@ body {
   display: flex;
   justify-content: center;
   flex-wrap: nowrap;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   overflow-x: auto;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
@@ -211,6 +134,7 @@ body {
   -webkit-overflow-scrolling: touch;
   padding-bottom: 4px;
   max-width: 100%;
+  gap: 1.5rem;
 }
 
 /* 隐藏滚动条 */
@@ -222,85 +146,88 @@ body {
 .tab {
   padding: 0.75rem 1.5rem;
   border: none;
-  background: none;
+  background: rgba(255, 255, 255, 0.15);
   cursor: pointer;
   font-size: 1rem;
   position: relative;
-  color: #666;
-  transition: color 0.3s;
+  color: rgba(255, 255, 255, 0.8);
+  transition: all 0.3s;
   flex-shrink: 0;
+  border-radius: 50px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.tab:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
 }
 
 .tab.active {
-  color: #4caf50;
+  color: white;
   font-weight: bold;
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-/* 活动选项卡底部指示线 */
-.tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  width: 100%;
-  height: 2px;
-  background: #4caf50;
+.tab-icon {
+  margin-right: 4px;
 }
 
 /* 内容区域样式 */
 .app-content {
   flex: 1;
   margin-bottom: 2rem;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
 /* 页脚样式 */
 .app-footer {
   margin-top: auto;
-  padding: 1rem 0;
+  padding: 1.5rem 0;
   text-align: center;
-  color: #666;
-  border-top: 1px solid #ddd;
+  color: #777;
+  font-size: 0.9rem;
 }
 
 /* 响应式布局样式 */
 @media (max-width: 768px) {
   #app {
-    padding: 0.5rem;
+    padding: 1rem;
   }
   
   .app-header {
-    padding: 0.5rem 0;
-    margin-bottom: 1rem;
-    position: relative; /* 确保position属性 */
+    padding: 1rem 0;
+    margin-bottom: 1.5rem;
+    border-radius: 12px;
   }
   
   .app-header h1 {
-    font-size: 1.5rem;
-    margin-bottom: 0.8rem;
-    padding-top: 0.5rem;
-  }
-  
-  .user-info {
-    top: 0.5rem;
-    right: 0.5rem;
-    gap: 4px;
-    padding: 0;
-    position: fixed; /* 改为fixed定位，不受tab切换影响 */
-  }
-  
-  .username {
-    font-size: 12px;
+    font-size: 1.8rem;
+    margin-bottom: 1.2rem;
   }
   
   .tab {
-    padding: 0.5rem 1rem;
+    padding: 0.6rem 1.2rem;
     font-size: 0.9rem;
   }
   
   .tabs {
     justify-content: flex-start;
-    padding: 0 8px 4px;
+    padding: 0 12px 4px;
     margin-bottom: 0.5rem;
+    gap: 1rem;
+  }
+  
+  .app-content {
+    padding: 15px;
+    border-radius: 12px;
   }
 }
 </style>

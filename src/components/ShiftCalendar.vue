@@ -12,9 +12,9 @@
       </div>
 
       <div class="buttons">
-        <van-button plain size="small" type="primary" @click="goToToday">
-          <van-icon name="calendar-o"/>
-          <span>今天</span>
+        <van-button plain size="small" type="primary" @click="goToToday" class="today-btn">
+          <van-icon name="calendar-o" class="btn-icon"/>
+          <span class="btn-text">今天</span>
         </van-button>
       </div>
     </div>
@@ -29,7 +29,6 @@
             v-for="(day, index) in calendarDays"
             :key="index"
             :class="['calendar-cell', getDayClasses(day)]"
-            @click="handleDayClick(day)"
         >
           <div class="date-header">
             <div class="date-number">{{ day.date }}</div>
@@ -38,28 +37,11 @@
 
           <div v-if="day.task" class="task-info">
             <div class="task-name">{{ day.task.taskName }}</div>
-            <div class="shift-type">{{ day.task.isDay ? '白班' : day.task.isNight ? '夜班' : '休息' }}</div>
-            <div v-if="day.task.isNight" class="sleep-time">
-              {{ day.task.sleepTime }}睡觉
-            </div>
-          </div>
-
-          <div v-if="getDayMark(day.fullDate)" class="date-marks">
-            <div
-                v-for="markType in getMarkTypes(day.fullDate)"
-                :key="markType"
-                :class="`mark-${markType}`"
-                class="date-mark"
-            >
-              {{ getMarkLabel(markType) }}
-            </div>
+            <div class="shift-type">{{ day.task.isDay ? '白' : day.task.isNight ? '夜' : '休' }}</div>
           </div>
         </div>
       </div>
     </div>
-
-    <van-action-sheet v-model:show="showDayDetails" :actions="dayActions" cancel-text="取消" close-on-click-action
-                      @select="onActionSelect"/>
 
     <!-- 月份选择器 -->
     <van-popup v-model:show="showMonthPicker" position="bottom" round>
@@ -77,21 +59,18 @@
 </template>
 
 <script setup>
-import {computed, onMounted, ref, watch} from 'vue';
+import {computed, onMounted, ref} from 'vue';
 import {useUserStore} from '@/stores/user';
 import {storeToRefs} from 'pinia';
 import {Solar} from 'lunar-javascript';
 
 // 使用用户store
 const userStore = useUserStore();
-const {settings, markedDates} = storeToRefs(userStore);
-
+const {settings} = storeToRefs(userStore);
 
 // 响应式状态
 const currentYear = ref(new Date().getFullYear());
 const currentMonth = ref(new Date().getMonth());
-const showDayDetails = ref(false);
-const selectedDay = ref(null);
 const showMonthPicker = ref(false); // 月份选择器显示状态
 const currentDateArray = ref([
   currentYear.value.toString(),
@@ -102,19 +81,6 @@ const currentDateArray = ref([
 const startDate = computed(() => settings.value.startDate);
 const initialTaskId = computed(() => settings.value.initialTaskId);
 const tasks = computed(() => settings.value.tasks);
-
-// 操作菜单
-const dayActions = computed(() => {
-  if (!selectedDay.value) return [];
-
-  return [
-    {name: '标记休假', value: 'mark-leave'},
-    {name: '标记加班', value: 'mark-overtime'},
-    {name: '标记双倍工资', value: 'mark-double'},
-    {name: '标记双倍加班', value: 'mark-doubleOvertime'}
-  ];
-});
-
 
 // 计算属性
 const weekdays = computed(() => ['日', '一', '二', '三', '四', '五', '六']);
@@ -138,7 +104,8 @@ function getLunarDate(date) {
     // 判断是否是节气
     const term = lunar.getJieQi();
     if (term) {
-      return term;
+      // 确保节气名称不超过4个字
+      return term.length > 4 ? term.substring(0, 4) + '..' : term;
     }
 
     // 判断是否是农历节日
@@ -146,8 +113,8 @@ function getLunarDate(date) {
     if (festivals.length > 0) {
       // 只取第一个节日，并缩短显示
       const festival = festivals[0];
-      // 如果节日名称太长，取前2个字
-      return festival.length > 2 ? festival.substring(0, 15) : festival;
+      // 限制节日名称长度，超过4个字就截断
+      return festival.length > 4 ? festival.substring(0, 4) + '..' : festival;
     }
 
     // 判断是否是公历节日
@@ -155,8 +122,8 @@ function getLunarDate(date) {
     if (solarFestivals.length > 0) {
       // 只取第一个节日，并缩短显示
       const festival = solarFestivals[0];
-      // 如果节日名称太长，取前2个字
-      return festival.length > 2 ? festival.substring(0, 15) : festival;
+      // 限制节日名称长度，超过4个字就截断
+      return festival.length > 4 ? festival.substring(0, 4) + '..' : festival;
     }
 
     return lunarDay;
@@ -241,14 +208,13 @@ function createDayObject(date, isCurrentMonth) {
     isDay: isDay,
     isNight: isNight,
     isRest: isRest,
-    // 设置任务和睡觉时间
+    // 设置任务信息
     task: {
       taskName: task ? task.name : '未知',
       taskClass: task ? task.taskClass : '',
       isDay: isDay,
       isNight: isNight,
-      isRest: isRest,
-      sleepTime: task ? task.sleepTime : ''
+      isRest: isRest
     }
   };
 }
@@ -316,58 +282,21 @@ function nextMonth() {
   }
 }
 
-
-
-
-
-// 格式化日期为键
-function formatDateKey(date) {
-  if (!date) return '';
-
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+// 跳转到今天
+function goToToday() {
+  const today = new Date();
+  currentYear.value = today.getFullYear();
+  currentMonth.value = today.getMonth();
 }
 
-// 标记日期
-function markDay(date, type) {
-  if (!date) return;
-
-  // 确保日期格式统一（YYYY-MM-DD）
-  const dateKey = formatDateKey(date);
-
-  // 获取当前日期的标记
-  let currentMarks = markedDates.value[dateKey] || {};
-
-  // 如果当前不是对象，初始化为空对象
-  if (typeof currentMarks !== 'object') {
-    currentMarks = {};
+// 月份选择器确认事件
+function onMonthSelected(values) {
+  if (values && values.length >= 2) {
+    currentYear.value = parseInt(values[0], 10);
+    currentMonth.value = parseInt(values[1], 10) - 1;
+    showMonthPicker.value = false;
   }
-
-  // 切换指定类型的标记
-  if (currentMarks[type]) {
-    // 如果已有此标记，则移除
-    currentMarks[type] = false;
-  } else {
-    // 如果没有此标记，则添加
-    currentMarks[type] = true;
-  }
-
-  // 如果所有标记都为false，则删除该日期的整个标记对象
-  const hasActiveMarks = Object.values(currentMarks).some(val => val === true);
-
-  if (!hasActiveMarks) {
-    delete markedDates.value[dateKey];
-  } else {
-    // 更新标记
-    markedDates.value[dateKey] = currentMarks;
-  }
-
-  // 调用store的保存方法
-  userStore.saveUserData();
 }
-
 
 // 组件挂载后
 onMounted(() => {
@@ -404,401 +333,405 @@ function getDayClasses(day) {
     classes.push('rest-day');
   }
 
-  // 添加标记类
-  const markTypes = getMarkTypes(day.fullDate);
-  if (markTypes.length > 0) {
-    markTypes.forEach(markType => {
-      classes.push(`has-mark-${markType}`);
-    });
-  }
-
   return classes;
 }
-
-// 获取日期的标记
-function getDayMark(date) {
-  if (!date) return null;
-
-  const dateKey = formatDateKey(date);
-  return markedDates.value[dateKey];
-}
-
-
-// 处理日期点击
-function handleDayClick(day) {
-  selectedDay.value = day;
-  showDayDetails.value = true;
-}
-
-// 处理动作选择
-function onActionSelect(action) {
-  if (!selectedDay.value) return;
-
-  const date = selectedDay.value.fullDate;
-
-  if (action.value.startsWith('mark-')) {
-    // 标记类型
-    const markType = action.value.split('-')[1];
-    markDay(date, markType);
-  }
-
-  // 关闭动作面板
-  showDayDetails.value = false;
-}
-
-// 跳转到今天
-function goToToday() {
-  const today = new Date();
-  currentYear.value = today.getFullYear();
-  currentMonth.value = today.getMonth();
-}
-
-// 获取标记的显示文本
-function getMarkLabel(markType) {
-  switch (markType) {
-    case 'leave':
-      return '休假';
-    case 'overtime':
-      return '加班';
-    case 'double':
-      return '双倍';
-    case 'doubleOvertime':
-      return '双倍加班';
-    default:
-      return markType;
-  }
-}
-
-// 获取日期的所有标记类型数组
-function getMarkTypes(date) {
-  if (!date) return [];
-
-  const dateKey = formatDateKey(date);
-  const mark = markedDates.value[dateKey];
-
-  if (!mark || typeof mark !== 'object') return [];
-
-  return Object.keys(mark).filter(key => mark[key] === true);
-}
-
-// 处理月份选择
-function onMonthSelected(value) {
-  console.log('选择的日期：', value);
-  if (value && Array.isArray(value) && value.length >= 2) {
-    // 从数组中提取年月
-    const year = parseInt(value[0]);
-    // 月份需要减1，因为JavaScript月份从0开始
-    const month = parseInt(value[1]) - 1;
-    
-    currentYear.value = year;
-    currentMonth.value = month;
-    
-    // 更新currentDateArray，确保同步
-    currentDateArray.value = [
-      year.toString(),
-      (month + 1).toString().padStart(2, '0')
-    ];
-  }
-  showMonthPicker.value = false;
-}
-
-// 监听年月变化，更新选择器数组
-watch([currentYear, currentMonth], ([newYear, newMonth]) => {
-  currentDateArray.value = [
-    newYear.toString(),
-    (newMonth + 1).toString().padStart(2, '0')
-  ];
-});
 </script>
 
 <style scoped>
+/* 日历容器样式 */
 .shift-calendar {
-  background-color: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
   width: 100%;
-  position: relative;
+  max-width: 100%;
+  background-color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  transition: all 0.3s ease;
 }
 
-.calendar-header {
-  padding: 16px;
+/* 覆盖Vant按钮样式 */
+:deep(.van-button) {
   display: flex;
   align-items: center;
+  justify-content: center;
+}
+
+:deep(.van-button__content) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 日历头部样式 */
+.calendar-header {
+  padding: 20px;
+  display: flex;
   justify-content: space-between;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  background-color: #f9f9f9;
-  position: sticky;
-  top: 0;
-  z-index: 30;
+  align-items: center;
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .month-navigation {
   display: flex;
   align-items: center;
+  gap: 16px;
 }
 
-.month-navigation span {
-  margin: 0 16px;
-  font-size: 1.2rem;
-  font-weight: 500;
+.month-display {
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 140px;
+  text-align: center;
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.month-display:hover {
+  transform: scale(1.05);
 }
 
 .buttons {
   display: flex;
-  align-items: center;
+  gap: 10px;
 }
 
+/* 今天按钮样式 */
+.today-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  height: 32px;
+  white-space: nowrap;
+}
+
+.btn-icon {
+  flex-shrink: 0;
+}
+
+.btn-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 日历网格容器 */
 .calendar-grid {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  width: 100%;
 }
 
+/* 星期头部样式 */
 .weekday-header {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  text-align: center;
-  font-weight: bold;
-  padding: 10px 0;
-  background-color: #f9f9f9;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  position: sticky;
-  top: 60px;
-  z-index: 29;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #eee;
 }
 
 .weekday-cell {
-  font-size: 0.9rem;
+  padding: 14px 8px;
+  text-align: center;
+  font-weight: 600;
+  color: #444;
+  font-size: 15px;
 }
 
+/* 周末特殊样式 */
+.weekday-cell:first-child, 
+.weekday-cell:last-child {
+  color: #e53935;
+}
+
+/* 日历主体样式 */
 .calendar-body {
-  flex: 1;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  grid-gap: 6px;
-  padding: 10px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  z-index: 10;
+  grid-template-rows: repeat(6, 1fr); /* 固定6行高度 */
+  background-color: #fcfcfc;
 }
 
+/* 日历单元格样式 */
 .calendar-cell {
-  position: relative;
-  min-height: 85px;
-  padding: 6px;
-  border-radius: 8px;
-  background-color: #f9f9f9;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  padding: 8px;
+  border-right: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  position: relative;
+  transition: all 0.25s ease;
+  min-height: 80px; /* 确保最小高度 */
+}
+
+/* 桌面端日历单元格样式 */
+@media (min-width: 769px) {
+  .calendar-body {
+    grid-auto-rows: minmax(100px, auto);
+  }
+  
+  .calendar-cell {
+    min-height: 100px;
+    height: 100%;
+  }
 }
 
 .calendar-cell:hover {
-  transform: scale(1.02);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
   z-index: 5;
-}
-
-.calendar-cell:not(.current-month) {
-  opacity: 0.4;
+  background-color: rgba(76, 175, 80, 0.03);
 }
 
 .date-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: 4px;
-  padding-bottom: 2px;
-  border-bottom: 1px dashed rgba(0, 0, 0, 0.05);
+  margin-bottom: 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px dashed rgba(0,0,0,0.05);
 }
 
 .date-number {
-  font-weight: bold;
-  font-size: 0.95rem;
-  text-align: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #333;
 }
 
 .lunar-date {
-  font-size: 0.7rem;
-  color: #888;
+  font-size: 11px;
+  color: #777;
+  margin-top: 3px;
+  max-width: 100%;
   text-align: center;
-  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* 任务信息样式 */
 .task-info {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 1;
-}
-
-.task-name, .shift-type {
-  font-size: 0.8rem;
-  text-align: center;
-  margin-bottom: 2px;
+  font-size: 14px;
+  margin-top: auto;
+  background-color: rgba(255,255,255,0.8);
+  padding: 6px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
   width: 100%;
 }
 
-.task-1 {
-  background-color: #E6F7FF;
+.task-info:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
-.task-2 {
-  background-color: #FFF7E6;
-}
-
-.task-3 {
-  background-color: #E6FFFB;
-}
-
-.task-4 {
-  background-color: #FCE6FF;
-}
-
-.task-5 {
-  background-color: #FFFBE6;
-}
-
-.task-6 {
-  background-color: #F5FFE6;
-}
-
-.today {
-  border: 2px solid #1890ff;
-  box-shadow: 0 0 8px rgba(24, 144, 255, 0.3);
-}
-
-.sleep-time {
-  font-size: 0.7rem;
+.task-name {
+  font-weight: 700;
+  margin-bottom: 5px;
+  color: #333;
+  max-width: 100%;
   text-align: center;
-  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* 标记样式 */
-.date-marks {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-  margin-top: auto;
-  padding-top: 4px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.05);
+.shift-type {
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  background-color: #f5f5f5;
+  color: #333;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  max-width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.date-mark {
-  font-size: 0.65rem;
-  padding: 1px 3px;
-  border-radius: 3px;
-  color: white;
-  font-weight: bold;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+/* 日期状态样式 */
+.calendar-cell.today {
+  background-color: rgba(25, 118, 210, 0.07);
+  box-shadow: inset 0 0 0 3px rgba(25, 118, 210, 0.3);
 }
 
-.mark-leave {
-  background-color: #f44336; /* 红色 - 休假 */
+.calendar-cell.other-month {
+  opacity: 0.35;
 }
 
-.mark-overtime {
-  background-color: #4caf50; /* 绿色 - 加班 */
+/* 班次颜色 */
+.calendar-cell.day-shift .shift-type {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  box-shadow: 0 1px 3px rgba(46, 125, 50, 0.2);
 }
 
-.mark-double {
-  background-color: #ff9800; /* 橙色 - 双倍工资 */
+.calendar-cell.night-shift .shift-type {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  box-shadow: 0 1px 3px rgba(21, 101, 192, 0.2);
 }
 
-.mark-doubleOvertime {
-  background-color: #9c27b0; /* 紫色 - 双倍加班 */
+.calendar-cell.rest-day .shift-type {
+  background-color: #fff3e0;
+  color: #e65100;
+  box-shadow: 0 1px 3px rgba(230, 81, 0, 0.2);
+}
+
+/* 任务颜色 */
+.calendar-cell.task-1 {
+  border-left: 5px solid #f44336;
+}
+
+.calendar-cell.task-2 {
+  border-left: 5px solid #2196f3;
+}
+
+.calendar-cell.task-3 {
+  border-left: 5px solid #4caf50;
+}
+
+.calendar-cell.task-4 {
+  border-left: 5px solid #ff9800;
+}
+
+.calendar-cell.task-5 {
+  border-left: 5px solid #9c27b0;
+}
+
+.calendar-cell.task-6 {
+  border-left: 5px solid #795548;
+}
+
+/* 周末单元格样式 */
+.calendar-cell:nth-child(7n+1), 
+.calendar-cell:nth-child(7n) {
+  background-color: rgba(0,0,0,0.02);
 }
 
 @media (max-width: 768px) {
-  .shift-calendar {
-    border-radius: 0;
-    box-shadow: none;
-    height: auto;
-    min-height: calc(100vh - 140px);
-    background-color: transparent;
-  }
-
-  .calendar-header {
-    padding: 10px 8px;
-  }
-
-  .month-navigation span {
-    font-size: 1rem;
-    margin: 0 8px;
-  }
-
-  .weekday-header {
-    padding: 8px 0;
-    top: 50px;
-  }
-
-  .weekday-cell {
-    font-size: 0.8rem;
+  .calendar-cell {
+    padding: 4px;
+    min-height: 65px; /* 移动端较小的最小高度 */
+    height: auto; /* 根据内容自适应高度 */
   }
 
   .calendar-body {
-    padding: 8px 4px;
-    grid-gap: 4px;
-  }
-
-  .calendar-cell {
-    min-height: 75px;
-    padding: 4px;
-  }
-
-  .date-header {
-    margin-bottom: 2px;
-    padding-bottom: 1px;
+    grid-template-rows: auto; /* 移动端根据内容自适应行高 */
   }
 
   .date-number {
-    font-size: 0.85rem;
+    font-size: 14px;
   }
 
   .lunar-date {
-    font-size: 0.6rem;
+    font-size: 9px;
+    margin-top: 1px;
   }
 
-  .task-name, .shift-type {
-    font-size: 0.7rem;
+  .task-info {
+    font-size: 12px;
+    padding: 3px;
   }
 
-  .sleep-time {
-    font-size: 0.65rem;
+  .shift-type {
+    padding: 2px 6px;
+    font-size: 10px;
   }
-
-  .date-marks {
-    gap: 2px;
-    padding-top: 2px;
+  
+  .calendar-header {
+    padding: 12px 8px;
   }
-
-  .date-mark {
-    font-size: 0.6rem;
-    padding: 1px 2px;
+  
+  .month-display {
+    font-size: 16px;
+    min-width: 100px;
+  }
+  
+  .task-name {
+    margin-bottom: 3px;
+    font-size: 11px;
+  }
+  
+  /* 移动端按钮样式优化 */
+  .today-btn {
+    padding: 0 8px;
+    height: 28px;
+    font-size: 12px;
+  }
+  
+  .btn-text {
+    max-width: 36px;
+  }
+  
+  .month-navigation {
+    gap: 8px;
   }
 }
 
-.month-display {
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
+/* 特别小的屏幕额外适配 */
+@media (max-width: 480px) {
+  .weekday-cell {
+    padding: 8px 2px;
+    font-size: 12px;
+  }
+  
+  .date-number {
+    font-size: 12px;
+  }
+  
+  .calendar-cell {
+    padding: 2px;
+  }
+  
+  .date-header {
+    margin-bottom: 4px;
+    padding-bottom: 2px;
+  }
+  
+  .task-info {
+    padding: 2px;
+  }
+  
+  /* 超小屏幕按钮样式进一步优化 */
+  .calendar-header {
+    padding: 8px 6px;
+  }
+  
+  .month-display {
+    min-width: 80px;
+    font-size: 14px;
+  }
+  
+  .today-btn {
+    padding: 0 6px;
+    height: 24px;
+    width: 24px; /* 变成正方形按钮 */
+  }
+  
+  .btn-text {
+    display: none; /* 极小屏幕下隐藏文字 */
+  }
 }
 
-.month-display:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.month-display:active {
-  background-color: rgba(0, 0, 0, 0.1);
+/* 在超窄屏幕上进一步优化 */
+@media (max-width: 360px) {
+  .month-display {
+    min-width: 70px;
+    font-size: 12px;
+  }
+  
+  .calendar-header {
+    padding: 6px 4px;
+  }
 }
 </style> 
